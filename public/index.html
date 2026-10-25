@@ -170,9 +170,9 @@ function setEvent(ev,by){if(ev===A.event)return;A.event=ev;document.querySelecto
   A.lessons.push(`EVENT CHANGED to ${ev} by ${by}: the champion now scores ${sc(A.champ.e)} here (was ${before})`);note(by,`changed the course to ${ev} · champion re-scored ${sc(A.champ.e).toFixed(2)}`,{d:sc(A.champ.e)-before});renderPanel();card('the crowd',`the course is now ${ev}`,`champion re-scored ${sc(A.champ.e).toFixed(2)}`,'crowd',1600);if(!A.busy)warmup()}
 
 /* ---------- the loop ---------- */
-function startPending(plateau){const key=A.event+'|'+A.champ.lin+'|'+A.gen;A.pendingKey=key;A.pending=propose(plateau).catch(()=>null)}
+function startPending(plateau){A.pendingPlateau=plateau;A.pending=propose(plateau).catch(()=>null)}
 async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=sc(A.champ.e);$('genN').textContent=A.gen;const plateau=A.plateau;A.plateau=false;
-  let props=null;if(A.pending&&!plateau){setStatus('coaches already have their bets…');props=await A.pending}A.pending=null;
+  let props=null;if(A.pending&&A.pendingPlateau===plateau){setStatus(plateau?'plateau · the head coach is rethinking the body…':'coaches already have their bets…');props=await A.pending}A.pending=null;
   if(!props){setStatus(plateau?'plateau · the coaches rethink the body…':'the coaches are thinking…');props=await propose(plateau)}
   setStatus('physics is judging six hypotheses…');await new Promise(r=>setTimeout(r,30));
   const res=props.map(p=>({...p,e:SIM.evaluate(p.genome,A.event)})).map(r=>({...r,score:sc(r.e)})).sort((a,b)=>b.score-a.score);
@@ -189,7 +189,7 @@ async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=sc
   A.history.push(sc(A.champ.e));renderPanel();pushRoom();
   await card(accepted?'kept · new record':'rejected · 6 of 6',best.hyp,accepted?`${best.coach} · ${best.score.toFixed(2)} (+${(best.score-A.prevRecord).toFixed(2)}) · ${SIM.gait(best.e)}`:`best of the heat ${best.score.toFixed(2)} · record stays ${sc(A.champ.e).toFixed(2)}`,accepted?'acc':'rej');
   if(!accepted&&A.sinceRecord>=4){A.plateau=true;A.pending=null;const L=LET[A.lins++]||'Z';A.names[L]=A.names[L]||SIM.latinName(A.lins);let g=SIM.SEED;for(let k=0;k<3;k++)g=SIM.mutate(g).genome;const e=SIM.evaluate(g,A.event);pushStable({genome:g,e,lin:L,coach:'the seed',hyp:'a fresh body enters'});
-    A.lessons.push(`PLATEAU after ${A.sinceRecord} dry generations: lineage ${L} (${A.names[L]}) enters from the seed; structural changes only next round`);note('the stadium',`plateau · ${A.names[L]} enters`);A.sinceRecord=0;renderPanel();await card('plateau',`${A.names[L]} enters the stadium`,'structural changes only next round','rej',1800)}
+    A.lessons.push(`PLATEAU after ${A.sinceRecord} dry generations: lineage ${L} (${A.names[L]}) enters from the seed; structural changes only next round`);note('the stadium',`plateau · ${A.names[L]} enters`);A.sinceRecord=0;renderPanel();if(A.running)startPending(true);await card('plateau',`${A.names[L]} enters the stadium`,'structural changes only next round','rej',1800)}
   const lines=await commP;showComm(lines);
   A.busy=false;if(A.running){warmup();setTimeout(()=>{if(A.running)generation()},250)}else warmup()}
 

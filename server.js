@@ -78,10 +78,10 @@ ${COACHES.map(c => `- ${c.name}: ${c.style}`).join('\n')}
 Coaches 1-4 mutate the champion. Ren crosses the champion with a stable alternate when one is given. Sol mutates a stable alternate when one is given, else the champion. Return FULL genomes, not diffs. A hypothesis is a causal claim in at most 12 words, in the coach's voice.
 Reply with JSON: {"proposals": [ {"coach": string, "hypothesis": string, "genome": {...}} x6 ]}`;
   try {
-    const { data, model } = await callJSON(sys, user, { tier: plateau ? 'head' : 'coach' });
+    const { data, model } = await callJSON(sys, user, { tier: plateau ? 'head' : 'coach', timeoutMs: plateau ? 50000 : 25000 });
     const arr = Array.isArray(data) ? data : Array.isArray(data.proposals) ? data.proposals : [];
     res.json({ proposals: arr.slice(0, 6), model, provider: PROVIDER });
-  } catch (e) { res.status(502).json({ error: e.code || 'error', message: String(e.message).slice(0, 200), provider: PROVIDER }); }
+  } catch (e) { console.error('coaches failed:', e.code || '', String(e.message).slice(0, 200)); res.status(502).json({ error: e.code || 'error', message: String(e.message).slice(0, 200), provider: PROVIDER }); }
 });
 
 app.post('/api/commentary', async (req, res) => {
