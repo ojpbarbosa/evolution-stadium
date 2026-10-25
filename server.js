@@ -138,14 +138,58 @@ app.post('/api/tts', async (req, res) => {
 });
 
 /* ---------- the room (crowd) ---------- */
-const room = { gen: 0, record: 0, event: 'flat', lineageName: 'Lineage A', lineage: 'A', heat: [], notebook: [], votes: { flat: 0, stairs: 0, ice: 0, gap: 0 }, values: { speed: 1, posture: 1, economy: 0 }, names: {}, valuesBy: null, updatedAt: Date.now(), stats: { prop: 0, rej: 0, acc: 0 }, model: modelFor('coach'), provider: PROVIDER };
-app.get('/api/room', (req, res) => res.json(room));
-app.post('/api/room/host', (req, res) => { const b = req.body || {}; for (const k of ['gen', 'record', 'event', 'lineageName', 'lineage', 'heat', 'notebook', 'stats', 'values']) if (b[k] !== undefined) room[k] = b[k]; if (b.resetVotes) room.votes = { flat: 0, stairs: 0, ice: 0, gap: 0 }; room.updatedAt = Date.now(); res.json({ ok: true, votes: room.votes, names: room.names, values: room.values, valuesBy: room.valuesBy }); });
-app.post('/api/room/vote', (req, res) => { const c = String((req.body || {}).course || ''); if (!(c in room.votes)) return res.status(400).json({ error: 'course' }); room.votes[c]++; room.updatedAt = Date.now(); res.json({ votes: room.votes }); });
-app.post('/api/room/name', (req, res) => { const n = String((req.body || {}).name || '').trim().slice(0, 24); if (!n) return res.status(400).json({ error: 'name' }); room.names[room.lineage] = n; room.lineageName = n; room.updatedAt = Date.now(); res.json({ ok: true, names: room.names }); });
-app.post('/api/room/values', (req, res) => { const v = req.body || {}; const cl = x => Math.max(0, Math.min(2, Number(x) || 0)); room.values = { speed: cl(v.speed ?? 1), posture: cl(v.posture ?? 1), economy: cl(v.economy ?? 0) }; room.valuesBy = String(v.by || 'the judge').slice(0, 24); room.updatedAt = Date.now(); res.json({ values: room.values }); });
+/* SpacetimeDB holds the room when SPACETIME_DB is set: votes, lineage names, the judge's values and
+   the scoreboard live in reducers and public tables, so any number of stateless web nodes agree.
+   Without it, one in-memory room on this process keeps the demo working. */
+const STDB = process.env.SPACETIME_DB || '';
+const STDB_HOST = (process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com').replace(/\/$/, '');
+const COURSES = ['flat', 'stairs', 'ice', 'gap'];
+const mem = { gen: 0, record: 0, event: 'flat', lineageName: 'Lineage A', lineage: 'A', heat: [], notebook: [], votes: { flat: 0, stairs: 0, ice: 0, gap: 0 }, values: { speed: 1, posture: 1, economy: 0 }, names: {}, valuesBy: null, updatedAt: Date.now(), stats: { prop: 0, rej: 0, acc: 0 } };
+async function stCall(reducer, args) {
+  const r = await fetch(`${STDB_HOST}/v1/database/${STDB}/call/${reducer}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) });
+  if (!r.ok) throw new Error(`spacetime ${reducer} ${r.status} ${(await r.text()).slice(0, 160)}`);
+}
+async function stSql(sql) {
+  const r = await fetch(`${STDB_HOST}/v1/database/${STDB}/sql`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: sql });
+  if (!r.ok) throw new Error(`spacetime sql ${r.status} ${(await r.text()).slice(0, 160)}`);
+  return (await r.json()).map(st => {
+    const names = ((st.schema && st.schema.elements) || []).map((e, i) => typeof e.name === 'string' ? e.name : (e.name && (e.name.some ?? e.name.Some)) || ('c' + i));
+    return (st.rows || []).map(row => Object.fromEntries(names.map((n, i) => [n, row[i]])));
+  });
+}
+const J = (s, d) => { try { return JSON.parse(s); } catch (e) { return d; } };
+let roomCache = { at: 0, data: null };
+async function stRoom() {
+  if (roomCache.data && Date.now() - roomCache.at < 400) return roomCache.data;
+  const [rooms, votes, names] = await stSql('SELECT * FROM room; SELECT * FROM vote; SELECT * FROM names');
+  const r = rooms[0] || {};
+  const data = { gen: Number(r.gen || 0), record: Number(r.record || 0), event: r.event || 'flat', lineageName: r.lname || 'Lineage A', lineage: r.lineage || 'A', heat: J(r.heat, []), notebook: J(r.notebook, []), stats: J(r.stats, { prop: 0, rej: 0, acc: 0 }), values: { speed: Number(r.speed ?? 1), posture: Number(r.posture ?? 1), economy: Number(r.economy ?? 0) }, valuesBy: r.vby || null, votes: Object.fromEntries(COURSES.map(c => [c, Number((votes.find(v => v.course === c) || {}).count || 0)])), names: Object.fromEntries(names.map(n => [n.lineage, n.name])), updatedAt: Math.round(Number(r.updated || 0) / 1000), model: modelFor('coach'), provider: PROVIDER, backend: 'spacetime' };
+  roomCache = { at: Date.now(), data }; return data;
+}
+const roomOf = async () => STDB ? stRoom() : { ...mem, model: modelFor('coach'), provider: PROVIDER, backend: 'memory' };
+const fail = (res, e) => { console.error('room failed:', e.message); res.status(502).json({ error: 'room_failed' }); };
+app.get('/api/room', async (req, res) => { try { res.json(await roomOf()); } catch (e) { fail(res, e); } });
+app.post('/api/room/host', async (req, res) => {
+  const b = req.body || {};
+  try {
+    if (STDB) {
+      const cur = await stRoom(); roomCache.at = 0; const v = b.values || cur.values;
+      await stCall('host', [Number(b.gen ?? cur.gen), Number(b.record ?? cur.record), String(b.event ?? cur.event), String(b.lineage ?? cur.lineage), String(b.lineageName ?? cur.lineageName), JSON.stringify(b.heat ?? cur.heat), JSON.stringify(b.notebook ?? cur.notebook), JSON.stringify(b.stats ?? cur.stats), Number(v.speed ?? 1), Number(v.posture ?? 1), Number(v.economy ?? 0), !!b.resetVotes]);
+      const n = await stRoom(); return res.json({ ok: true, votes: n.votes, names: n.names, values: n.values, valuesBy: n.valuesBy });
+    }
+    for (const k of ['gen', 'record', 'event', 'lineageName', 'lineage', 'heat', 'notebook', 'stats', 'values']) if (b[k] !== undefined) mem[k] = b[k];
+    if (b.resetVotes) mem.votes = { flat: 0, stairs: 0, ice: 0, gap: 0 }; mem.updatedAt = Date.now();
+    res.json({ ok: true, votes: mem.votes, names: mem.names, values: mem.values, valuesBy: mem.valuesBy });
+  } catch (e) { fail(res, e); }
+});
+app.post('/api/room/vote', async (req, res) => { const c = String((req.body || {}).course || ''); if (!COURSES.includes(c)) return res.status(400).json({ error: 'course' });
+  try { if (STDB) { await stCall('vote', [c]); roomCache.at = 0; return res.json({ votes: (await stRoom()).votes }); } mem.votes[c]++; mem.updatedAt = Date.now(); res.json({ votes: mem.votes }); } catch (e) { fail(res, e); } });
+app.post('/api/room/name', async (req, res) => { const n = String((req.body || {}).name || '').trim().slice(0, 24); if (!n) return res.status(400).json({ error: 'name' });
+  try { if (STDB) { await stCall('rename', [n]); roomCache.at = 0; return res.json({ ok: true, names: (await stRoom()).names }); } mem.names[mem.lineage] = n; mem.lineageName = n; mem.updatedAt = Date.now(); res.json({ ok: true, names: mem.names }); } catch (e) { fail(res, e); } });
+app.post('/api/room/values', async (req, res) => { const v = req.body || {}; const cl = x => Math.max(0, Math.min(2, Number(x) || 0)); const vals = { speed: cl(v.speed ?? 1), posture: cl(v.posture ?? 1), economy: cl(v.economy ?? 0) }; const by = String(v.by || 'the judge').slice(0, 24);
+  try { if (STDB) { await stCall('judge', [vals.speed, vals.posture, vals.economy, by]); roomCache.at = 0; return res.json({ values: (await stRoom()).values }); } mem.values = vals; mem.valuesBy = by; mem.updatedAt = Date.now(); res.json({ values: mem.values }); } catch (e) { fail(res, e); } });
 app.get('/api/qr', async (req, res) => { try { const url = String(req.query.url || `${req.protocol}://${req.get('host')}/vote`); const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#EEE7D6', light: '#0000' } }); res.type('image/svg+xml').send(svg); } catch (e) { res.status(500).end(); } });
-app.get('/api/health', (req, res) => res.json({ ok: true, provider: PROVIDER, model: modelFor('coach'), head: modelFor('head'), voice: CARTESIA ? 'cartesia' : 'browser' }));
+app.get('/api/health', (req, res) => res.json({ ok: true, provider: PROVIDER, model: modelFor('coach'), head: modelFor('head'), voice: CARTESIA ? 'cartesia' : 'browser', room: STDB ? 'spacetime' : 'memory' }));
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => console.log(`Evolution Stadium on :${port} (${PROVIDER}: ${modelFor('coach')} / ${modelFor('head')})`));
