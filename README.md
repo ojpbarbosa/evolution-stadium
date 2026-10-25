@@ -53,7 +53,7 @@ Known limits: about a second to first audio on an uncached line, English only, b
 
 ### Spacetime: the room
 `spacetime/` is a TypeScript SpacetimeDB module with the tables `room`, `vote`, `names` and `ballot` and the
-reducers `vote`, `rename`, `judge` and `host`. The web node is stateless: `/api/room` reads the public tables
+reducers `cast`, `rename`, `judge` and `host`. The web node is stateless: `/api/room` reads the public tables
 over the SQL HTTP API and every write from a phone or from the stadium screen is a reducer call, so votes are
 transactional and any number of web nodes agree. Publish with `cd spacetime && spacetime publish evolution-stadium`
 and set `SPACETIME_DB=evolution-stadium` (and `SPACETIME_HOST` for a non-maincloud server).

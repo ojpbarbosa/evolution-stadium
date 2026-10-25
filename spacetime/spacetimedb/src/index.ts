@@ -46,7 +46,7 @@ export const init = spacetimedb.init(ctx => {
 });
 
 // A phone votes for the next course. Transactional: no lost votes across web nodes.
-export const vote = spacetimedb.reducer({ course: t.string() }, (ctx, { course }) => {
+export const cast = spacetimedb.reducer({ course: t.string() }, (ctx, { course }) => {
   const v = ctx.db.vote.course.find(course);
   if (!v) throw new SenderError('unknown course');
   ctx.db.vote.course.update({ ...v, count: v.count + 1 });

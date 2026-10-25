@@ -167,7 +167,7 @@ const J = (s, d) => { try { return JSON.parse(s); } catch (e) { return d; } };
 let roomCache = { at: 0, data: null };
 async function stRoom() {
   if (roomCache.data && Date.now() - roomCache.at < 400) return roomCache.data;
-  const [rooms, votes, names] = await stSql('SELECT * FROM room; SELECT * FROM vote; SELECT * FROM names');
+  const [[rooms], [votes], [names]] = await Promise.all(['room', 'vote', 'names'].map(t => stSql('SELECT * FROM ' + t)));
   const r = rooms[0] || {};
   const data = { gen: Number(r.gen || 0), record: Number(r.record || 0), event: r.event || 'flat', lineageName: r.lname || 'Lineage A', lineage: r.lineage || 'A', heat: J(r.heat, []), notebook: J(r.notebook, []), stats: J(r.stats, { prop: 0, rej: 0, acc: 0 }), values: { speed: Number(r.speed ?? 1), posture: Number(r.posture ?? 1), economy: Number(r.economy ?? 0) }, valuesBy: r.vby || null, votes: Object.fromEntries(COURSES.map(c => [c, Number((votes.find(v => v.course === c) || {}).count || 0)])), names: Object.fromEntries(names.map(n => [n.lineage, n.name])), updatedAt: Math.round(Number(r.updated || 0) / 1000), model: modelFor('coach'), provider: PROVIDER, backend: 'spacetime' };
   roomCache = { at: Date.now(), data }; return data;
@@ -189,7 +189,7 @@ app.post('/api/room/host', async (req, res) => {
   } catch (e) { fail(res, e); }
 });
 app.post('/api/room/vote', async (req, res) => { const c = String((req.body || {}).course || ''); if (!COURSES.includes(c)) return res.status(400).json({ error: 'course' });
-  try { if (STDB) { await stCall('vote', [c]); roomCache.at = 0; return res.json({ votes: (await stRoom()).votes }); } mem.votes[c]++; mem.updatedAt = Date.now(); res.json({ votes: mem.votes }); } catch (e) { fail(res, e); } });
+  try { if (STDB) { await stCall('cast', [c]); roomCache.at = 0; return res.json({ votes: (await stRoom()).votes }); } mem.votes[c]++; mem.updatedAt = Date.now(); res.json({ votes: mem.votes }); } catch (e) { fail(res, e); } });
 app.post('/api/room/name', async (req, res) => { const n = String((req.body || {}).name || '').trim().slice(0, 24); if (!n) return res.status(400).json({ error: 'name' });
   try { if (STDB) { await stCall('rename', [n]); roomCache.at = 0; return res.json({ ok: true, names: (await stRoom()).names }); } mem.names[mem.lineage] = n; mem.lineageName = n; mem.updatedAt = Date.now(); res.json({ ok: true, names: mem.names }); } catch (e) { fail(res, e); } });
 app.post('/api/room/values', async (req, res) => { const v = req.body || {}; const cl = x => Math.max(0, Math.min(2, Number(x) || 0)); const vals = { speed: cl(v.speed ?? 1), posture: cl(v.posture ?? 1), economy: cl(v.economy ?? 0) }; const by = String(v.by || 'the judge').slice(0, 24);
