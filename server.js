@@ -32,6 +32,7 @@ async function callJSON(system, user, { tier = 'coach', maxTokens = 3000, timeou
         system: system + '\nReply with a single JSON object only, no prose before or after it.',
         messages: [{ role: 'user', content: user }],
         output_config: { effort: tier === 'head' ? 'medium' : 'low' },
+        thinking: tier === 'head' ? { type: 'adaptive' } : { type: 'disabled' },
       }, { timeout: timeoutMs, signal: ctl.signal });
       if (msg.stop_reason === 'refusal') throw Object.assign(new Error('refusal'), { code: 'refusal' });
       text = msg.content.filter(b => b.type === 'text').map(b => b.text).join('');
@@ -47,7 +48,7 @@ async function callJSON(system, user, { tier = 'coach', maxTokens = 3000, timeou
       const j = await r.json(); text = j.choices?.[0]?.message?.content || '';
     }
     const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (!m) throw Object.assign(new Error('no json'), { code: 'invalid_json' });
+    if (!m) { console.error('invalid_json from', model, ':', String(text).slice(0, 200)); throw Object.assign(new Error('no json'), { code: 'invalid_json' }); }
     return { data: JSON.parse(m[0]), model };
   } finally { clearTimeout(timer); }
 }
@@ -67,8 +68,9 @@ const EVENTS = { flat: 'flat track', stairs: 'rising steps from x=3, 12 cm each'
 app.post('/api/coaches', async (req, res) => {
   const { champion, alts = [], event = 'flat', lessons = [], kept = [], plateau = false, values = {} } = req.body || {};
   if (!champion || !champion.genome) return res.status(400).json({ error: 'champion required' });
-  const sys = `You are six coaches breeding a walking creature in a rigid-body physics simulation. You never see the simulator; you only see genomes, scores and the notebook. You propose; physics decides.`;
-  const user = `Event: ${event} (${EVENTS[event] || event}). Score = metres along +x in 7 seconds, times a posture factor (upright matters, weight ${values.posture ?? 1}), times a speed weight ${values.speed ?? 1}, minus an economy penalty on total motor amplitude (weight ${values.economy ?? 0}). Flipping cuts the score by 70%.
+  const sys = `You are coaches breeding a walking creature in a rigid-body physics simulation. You never see the simulator; you only see genomes, scores and the notebook. You propose; physics decides.`;
+  const ROLE = { 'Dr. Okafor': 'mutates the champion', Bibi: 'mutates the champion', Hal: 'mutates the champion', Tuva: 'mutates the champion', Ren: 'crosses the champion with a stable alternate when one is given, else mutates the champion', Sol: 'mutates a stable alternate when one is given, else the champion' };
+  const userFor = group => `Event: ${event} (${EVENTS[event] || event}). Score = metres along +x in 7 seconds, times a posture factor (upright matters, weight ${values.posture ?? 1}), times a speed weight ${values.speed ?? 1}, minus an economy penalty on total motor amplitude (weight ${values.economy ?? 0}). Flipping cuts the score by 70%.
 Champion (lineage ${champion.lin || 'A'}): ${JSON.stringify(champion.genome)}
 Champion result: score ${champion.score} (raw ${champion.e?.raw} m, upright ${Math.round((champion.e?.upright ?? 0) * 100)}%, gait "${champion.gait || '?'}"${champion.e?.flipped ? ', flipped' : ''}).
 ${alts.map((a, i) => `Stable alternate ${i + 1} (lineage ${a.lin}, score ${a.score}, gait "${a.gait || '?'}"): ${JSON.stringify(a.genome)}`).join('\n')}
@@ -77,14 +79,18 @@ ${plateau ? 'PLATEAU: the record has not moved for several generations. Small nu
 Kept so far (what physics rewarded, oldest first): ${kept.join(' | ') || '(nothing yet)'}
 Lessons so far, newest last:
 ${lessons.slice(-16).join('\n') || '(none yet)'}
-Coaches and styles:
-${COACHES.map(c => `- ${c.name}: ${c.style}`).join('\n')}
-Coaches 1-4 mutate the champion. Ren crosses the champion with a stable alternate when one is given. Sol mutates a stable alternate when one is given, else the champion. Return FULL genomes, not diffs. A hypothesis is a causal claim in at most 12 words, in the coach's voice.
-Reply with JSON: {"proposals": [ {"coach": string, "hypothesis": string, "genome": {...}} x6 ]}`;
+You are exactly these coaches this round:
+${group.map(c => `- ${c.name} (${ROLE[c.name]}): ${c.style}`).join('\n')}
+Return FULL genomes, not diffs. A hypothesis is a causal claim in at most 12 words, in the coach's voice. Compact JSON, no whitespace inside the genome.
+Reply with JSON: {"proposals": [ {"coach": string, "hypothesis": string, "genome": {...}} x${group.length} ]}`;
   try {
-    const { data, model } = await callJSON(sys, user, { tier: plateau ? 'head' : 'coach', timeoutMs: plateau ? 30000 : 25000 });
-    const arr = Array.isArray(data) ? data : Array.isArray(data.proposals) ? data.proposals : [];
-    res.json({ proposals: arr.slice(0, 6), model, provider: PROVIDER });
+    const groups = [COACHES.slice(0, 3), COACHES.slice(3, 6)];
+    const results = await Promise.allSettled(groups.map(g => callJSON(sys, userFor(g), { tier: plateau ? 'head' : 'coach', timeoutMs: plateau ? 30000 : 25000 })));
+    const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+    if (!ok.length) throw results[0].reason;
+    for (const r of results) if (r.status === 'rejected') console.error('coach group failed:', r.reason && (r.reason.code || r.reason.message));
+    const arr = ok.flatMap(({ data }) => Array.isArray(data) ? data : Array.isArray(data.proposals) ? data.proposals : []);
+    res.json({ proposals: arr.slice(0, 6), model: ok[0].model, provider: PROVIDER, groups: ok.length });
   } catch (e) { console.error('coaches failed:', e.code || '', String(e.message).slice(0, 200)); res.status(502).json({ error: e.code || 'error', message: String(e.message).slice(0, 200), provider: PROVIDER }); }
 });
 
