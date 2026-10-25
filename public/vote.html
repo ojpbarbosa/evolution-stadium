@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>The Crowd · Evolution Stadium</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"><link rel="stylesheet" href="/style.css"></head>
+<body><div class="wrap">
+<div class="nav"><a href="/">stadium</a><a class="on" href="/vote">crowd</a><a href="/bench">bench</a><a href="/about">about</a></div>
+<div class="eyebrow">you are the crowd</div><h1>Change the course. Name the champion.</h1>
+<div class="grid2"><div class="box"><div class="eyebrow">record</div><div class="big" id="rec">0.00</div><div class="dim" id="recBy">—</div></div><div class="box"><div class="eyebrow">generation</div><div class="big" id="gen" style="color:var(--cream)">0</div><div class="dim" id="ev">course: flat</div></div></div>
+<div class="box"><div class="eyebrow">this heat</div><div class="lanes" id="lanes"><div class="dim">waiting for the first heat</div></div></div>
+<div class="box"><div class="eyebrow">vote the next course · applied when a course leads by two</div><div class="row" style="margin-top:8px" id="courses"><button class="btn" data-c="flat">Flat <span class="dim">0</span></button><button class="btn" data-c="stairs">Stairs <span class="dim">0</span></button><button class="btn" data-c="ice">Ice <span class="dim">0</span></button><button class="btn" data-c="gap">Gap <span class="dim">0</span></button></div></div>
+<div class="box"><div class="eyebrow">name the current lineage</div><form class="row" id="nameF" style="margin-top:8px"><input type="text" id="nameIn" maxlength="24" placeholder="e.g. Ambulor nocturna"><button class="btn" type="submit">Name</button></form></div>
+<div class="box"><div class="eyebrow">the judge's table · what the stadium values</div><p class="dim" style="margin:6px 0 10px">Three weights. Physics measures; the judge decides what counts. Changing them re-scores every creature in the stable.</p>
+<label>speed <b id="vS">1.0</b><input type="range" id="rS" min="0" max="2" step="0.1" value="1"></label><label>posture <b id="vP">1.0</b><input type="range" id="rP" min="0" max="2" step="0.1" value="1"></label><label>economy <b id="vE">0.0</b><input type="range" id="rE" min="0" max="2" step="0.1" value="0"></label>
+<form class="row" id="valF" style="margin-top:8px"><input type="text" id="judgeIn" maxlength="24" placeholder="judge's name"><button class="btn" type="submit">Set the values</button></form></div>
+<div class="box"><div class="eyebrow">the notebook</div><div id="book" style="display:grid;gap:6px;margin-top:8px"><div class="dim">empty</div></div></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);let room=null;
+async function pull(){try{room=await (await fetch('/api/room')).json();render()}catch(e){}}
+function render(){if(!room)return;$('rec').textContent=Number(room.record||0).toFixed(2);$('recBy').textContent=room.lineageName||'';$('gen').textContent=room.gen||0;$('ev').textContent='course: '+room.event;
+  $('lanes').innerHTML=(room.heat||[]).length?room.heat.map(h=>`<div class="laneRow"><span>${h.coach} <i>· ${h.hyp}</i></span><b>${Number(h.score).toFixed(2)} · ${h.gait||''}</b></div>`).join(''):'<div class="dim">waiting for the first heat</div>';
+  document.querySelectorAll('[data-c]').forEach(b=>{b.querySelector('span').textContent=room.votes[b.dataset.c]||0;b.classList.toggle('sel',room.event===b.dataset.c)});
+  $('book').innerHTML=(room.notebook||[]).slice(0,10).map(b=>`<div class="tk ${b.kept?'acc':''} ${b.flop?'flop':''}"><span class="g">g${b.gen}</span><span>${b.kept?'✓':'✗'} ${b.coach} <i>· ${b.hyp}</i></span><span class="d">${b.flop?'flipped ':''}${(b.d>=0?'+':'')+Number(b.d).toFixed(2)}</span></div>`).join('')||'<div class="dim">empty</div>'}
+document.querySelectorAll('[data-c]').forEach(b=>b.onclick=async()=>{await fetch('/api/room/vote',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({course:b.dataset.c})});pull()});
+$('nameF').onsubmit=async e=>{e.preventDefault();const n=$('nameIn').value.trim();if(!n)return;await fetch('/api/room/name',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:n})});$('nameIn').value='';pull()};
+for(const [k,v] of [['rS','vS'],['rP','vP'],['rE','vE']])$(k).oninput=()=>{$(v).textContent=Number($(k).value).toFixed(1)};
+$('valF').onsubmit=async e=>{e.preventDefault();await fetch('/api/room/values',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({speed:$('rS').value,posture:$('rP').value,economy:$('rE').value,by:$('judgeIn').value||'the judge'})});pull()};
+pull();setInterval(pull,2000);
+</script></body></html>

@@ -1,0 +1,22 @@
+# Evolution Stadium on Fly: one small machine serving the static arena and the coach API.
+# Deploy: fly launch --copy-config --no-deploy; fly secrets set OPENAI_API_KEY=… (or ANTHROPIC_API_KEY=…); fly deploy.
+app = "evolution-stadium"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

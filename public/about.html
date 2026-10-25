@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>About · Evolution Stadium</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"><link rel="stylesheet" href="/style.css"></head>
+<body><div class="wrap">
+<div class="nav"><a href="/">stadium</a><a href="/vote">crowd</a><a href="/bench">bench</a><a class="on" href="/about">about</a></div>
+<div class="eyebrow">why a stadium</div>
+<h1>This is how chips and antibodies are starting to be designed. We made it a sport so you can watch the method.</h1>
+<p>The loop is older than computers. Propose a change. Let something that cannot be argued with decide whether it is better. Keep the survivors, write down what you learned, go again. Breeders did it with wheat. Frances Arnold did it with enzymes and got a Nobel for it in 2018. In 2025 and 2026 the proposer became a language model and the loop got fast: AlphaEvolve found new matrix-multiplication algorithms by proposing code and keeping what a verifier accepted; auto-arch-tournament pointed the same loop at a RISC-V CPU and beat a human design by 26% on CoreMark per MHz, rejecting 63 of 73 hypotheses on the way. The agent never touches the judge. That line is the whole idea.</p>
+<p>The problem with the method is that you cannot see it. A chip's fitness is a timing report. An antibody's is a binding energy. So we built the one version of the loop where the verifier is physics you can watch: creatures that have to walk.</p>
+
+<h2>What happens every generation</h2>
+<figure class="box"><svg viewBox="0 0 720 150" width="100%" role="img" aria-label="The loop: coaches propose, physics judges, the stable keeps survivors, the notebook records, and the crowd changes the course">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#A9A394"/></marker></defs>
+<g font-family="IBM Plex Mono, monospace" font-size="12" fill="#EEE7D6" text-anchor="middle">
+<rect x="10" y="40" width="130" height="56" rx="12" fill="#121A2A" stroke="#F4C25B"/><text x="75" y="63">6 coaches</text><text x="75" y="81" fill="#A9A394">propose</text>
+<rect x="190" y="40" width="130" height="56" rx="12" fill="#121A2A" stroke="#E4562E"/><text x="255" y="63">physics</text><text x="255" y="81" fill="#A9A394">judges</text>
+<rect x="370" y="40" width="130" height="56" rx="12" fill="#121A2A" stroke="#6FCB8A"/><text x="435" y="63">the stable</text><text x="435" y="81" fill="#A9A394">keeps survivors</text>
+<rect x="550" y="40" width="160" height="56" rx="12" fill="#121A2A" stroke="#8FB3C9"/><text x="630" y="63">the notebook</text><text x="630" y="81" fill="#A9A394">records why</text>
+<path d="M140,68 L190,68" stroke="#A9A394" stroke-width="1.5" marker-end="url(#a)"/><path d="M320,68 L370,68" stroke="#A9A394" stroke-width="1.5" marker-end="url(#a)"/><path d="M500,68 L550,68" stroke="#A9A394" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M630,96 L630,125 L75,125 L75,96" fill="none" stroke="#A9A394" stroke-width="1.5" marker-end="url(#a)"/><text x="352" y="140" fill="#A9A394">lessons go back to the coaches · the crowd changes the course · the judge changes the values</text>
+</g></svg></figure>
+<ol>
+<li><b>Propose.</b> Six coaches, each a language-model persona with a style and a creed, read the champion's genome, two alternates from the stable, the last sixteen notebook lines and the current course. Each returns one mutated genome and a hypothesis in twelve words: a causal claim, not a wish.</li>
+<li><b>Judge.</b> Each genome is built as rigid boxes with motorised hinge joints in a physics engine and driven for seven seconds. The judge measures distance, how long the torso stayed upright, how much it bounced, and total motor amplitude. It is deterministic: the same genome always gets the same measurements. Coaches cannot touch it.</li>
+<li><b>Race.</b> The best three are replayed live, same engine, same timestep, so the race on screen is exactly what was scored.</li>
+<li><b>Select.</b> A proposal is kept only if it beats the record. Everything else goes into the notebook as rejected, with the delta and whether it fell. Four dry generations declare a plateau: a new lineage enters from the seed, and the coaches must change structure, not numbers.</li>
+<li><b>Values.</b> Physics measures; the judge's table decides what counts. Three weights, speed, posture and economy, turn measurements into a score and re-score the whole stable when they change. The outcome of every run is also classified into a gait: walk, hop, shuffle, crawl, tumble, statue.</li>
+</ol>
+
+<h2>What is real and what is simulated</h2>
+<p>Real: the physics, the scores, the race, the notebook, the lineage, the crowd's votes and the judge's values. The coaches are a language model (the model name is on the scoreboard); their hypotheses are their own words. Simulated: the creatures, the course. Nothing in the loop is scripted, and a bad night for the coaches shows up on the scoreboard as a flat curve.</p>
+
+<h2>The ablation, which is the result</h2>
+<p>Switch the coaches to blind random mutation and nothing else changes: same engine, same budget of six proposals per generation, same stable. The <a href="/bench">bench</a> runs both arms side by side and draws the two record curves. RoboMorph, the 2024 paper closest to this, never ran that baseline. We run it live, and we report it either way.</p>
+
+<h2>Where the idea comes from</h2>
+<ul class="ref">
+<li>Karl Sims, <i>Evolving Virtual Creatures</i>, 1994. The first creatures that learned to walk by evolution, and still the most watchable.</li>
+<li>Frances Arnold, directed evolution of enzymes, Nobel Prize in Chemistry 2018. Propose, screen, keep, repeat, with chemistry as the judge.</li>
+<li>Keiwan Donyagard, <i>Evolution</i>, 2017. A genetic-algorithm creature sandbox; the proposer there is random mutation.</li>
+<li>RoboMorph, 2024 to 2026. A language model as the mutation operator for robot morphologies.</li>
+<li>DeepMind, AlphaEvolve, 2025. Language-model proposals under an automated verifier, for algorithms.</li>
+<li>Filipe Bonetto, auto-arch-tournament and HWE Bench, 2026. The same loop on a CPU, with formal proofs and an FPGA timing run as the judge. "The verifier is the artifact." This project is that sentence with a crowd.</li>
+</ul>
+
+<h2>Where it goes</h2>
+<p>Swap the judge and keep the stadium. A chip: the judge is synthesis, formal checks and a timing run, which already exist in auto-arch. An antibody: the judge is a binding-energy model. A bridge: a load test. The coaches, the stable, the notebook, the plateau protocol and the crowd do not change. The stadium becomes a benchmark for how well a model proposes under a verifier, which is the skill that matters now, and a way for people who are not engineers to watch it happen.</p>
+
+<h2>Built at Cal Hacks 13.0</h2>
+<p class="dim">Three.js and cannon.js in the browser; a small Node server for the coaches and the room; one Fly machine. Coaches: Dr. Okafor ("The body is the hypothesis."), Bibi ("Rhythm before strength."), Hal ("Whatever is not there cannot fail."), Tuva ("Mass is a strategy."), Ren ("Every champion has two parents."), Sol ("Small steps compound."). The judge's table was Jev's idea: values and outcomes belong to a person, measurements belong to physics.</p>
+</div></body></html>

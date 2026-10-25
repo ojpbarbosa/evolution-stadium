@@ -1,0 +1,232 @@
+<title>Evolution Stadium</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a broadcast. The arena fills the screen; a scoreboard top-left, a lineage strip top-right, lane tags over the creatures, a replay card between heats, the notebook as a ticker, stadium signs along the bottom. One dark world. */
+:root{--night:#0A0D18;--turf:#121A2A;--ink:#1A1915;--cream:#EEE7D6;--cream-dim:#A9A394;--line:#283049;--glass:rgba(10,13,24,.72);
+  --lamp:#F4C25B;--ember:#E4562E;--leaf:#6FCB8A;--moon:#8FB3C9;--lilac:#C9A8F5;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;--body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--cream);font-family:var(--body);font-size:14px;line-height:1.4;box-sizing:border-box;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+.app{height:100%;display:grid;grid-template-rows:minmax(0,1fr) auto auto;gap:8px;max-width:1500px;margin:0 auto}
+.stage{position:relative;background:var(--turf);border:1px solid var(--line);border-radius:18px;overflow:hidden;min-height:380px}
+.stage canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;inset:0;pointer-events:none}
+.score{position:absolute;left:14px;top:12px;display:grid;gap:4px;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-width:230px}
+.score .t{font-family:var(--display);font-weight:800;font-size:17px;letter-spacing:-.01em}
+.score .t small{font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-dim);margin-left:8px}
+.score .n{display:flex;gap:14px;align-items:baseline}
+.score .n b{font-family:var(--display);font-weight:800;font-size:28px;line-height:1;font-variant-numeric:tabular-nums;color:var(--lamp)}
+.score .n span{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-dim)}
+.score svg{width:100%;height:34px;display:block}
+.score .st{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-dim)}
+.score .st b{color:var(--leaf);font-weight:500}.score .st.off b{color:var(--lamp)}
+.tree{position:absolute;right:14px;top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+.node{background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.node b{font-weight:500;color:var(--lamp)}.node.B b{color:var(--moon)}.node.C b{color:var(--lilac)}.node.D b{color:var(--leaf)}
+.node i{font-style:normal;color:var(--cream-dim)}
+.tree .arrow{color:var(--cream-dim);font-size:12px}
+.lane{position:absolute;transform:translate(-50%,-100%);background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:6px 10px;min-width:150px;max-width:230px}
+.lane .c{font-family:var(--display);font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;gap:10px}
+.lane .c b{font-family:var(--mono);font-weight:500;color:var(--lamp);font-variant-numeric:tabular-nums}
+.lane .h{font-size:11.5px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane .bar{height:4px;border-radius:99px;background:#223050;margin-top:5px;overflow:hidden}.lane .bar i{display:block;height:100%;background:var(--lamp);width:0}
+.card{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) scale(.96);background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:18px 26px;text-align:center;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:min(80%,640px)}
+.card.in{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.card .k{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-dim)}
+.card .k.acc{color:var(--leaf)}.card .k.rej{color:var(--ember)}
+.card .b{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.4vw,40px);line-height:1.05;letter-spacing:-.02em;text-wrap:balance;margin:4px 0}
+.card .d{font-family:var(--mono);font-size:14px;color:var(--lamp)}
+.comm{position:absolute;left:14px;right:14px;bottom:12px;display:grid;gap:5px;pointer-events:none}
+.comm div{font-size:14px;max-width:64ch;background:var(--glass);border-left:3px solid var(--lamp);padding:6px 10px;border-radius:0 10px 10px 0;opacity:0;transform:translateY(6px);transition:opacity .4s,transform .4s}
+.comm div.in{opacity:1;transform:none}.comm div.lou{border-left-color:var(--ember)}
+.comm b{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-dim);margin-right:8px}
+.gate{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,13,24,.55);backdrop-filter:blur(2px)}
+.gate div{text-align:center;display:grid;gap:10px;max-width:46ch;padding:0 16px}
+.gate h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,5vw,54px);line-height:1;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.gate p{margin:0;color:var(--cream-dim)}
+.big{padding:12px 20px;border-radius:14px;background:var(--lamp);color:var(--ink);font-weight:700;font-size:16px;justify-self:center}
+.ticker{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}
+.tk{flex:none;display:flex;gap:8px;align-items:baseline;background:#121A2A;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12.5px;white-space:nowrap}
+.tk .g{font-family:var(--mono);font-size:10.5px;color:var(--cream-dim)}
+.tk .d{font-family:var(--mono);font-size:11.5px;color:var(--cream-dim)}
+.tk.acc{border-color:#2C5A3A;background:#10211A}.tk.acc .d{color:var(--leaf)}
+.tk.flop .d{color:var(--ember)}.tk.crowd{border-color:#4B3F7A;background:#171A2E}
+.tk i{font-style:normal;color:var(--cream-dim)}
+.signs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.signs .grp{display:flex;gap:6px;align-items:center;background:#121A2A;border:1px solid var(--line);border-radius:14px;padding:6px}
+.signs .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-dim);padding:0 6px}
+.signs button{padding:7px 11px;border-radius:9px;font-size:13px;color:var(--cream-dim)}
+.signs button[aria-pressed="true"]{background:var(--lamp);color:var(--ink);font-weight:600}
+.signs button.go{background:var(--cream);color:var(--ink);font-weight:700}
+.signs input{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:#0E1424;color:var(--cream);min-width:0;width:150px}
+.signs .right{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.counts{font-family:var(--mono);font-size:11.5px;color:var(--cream-dim);padding:0 8px}
+.counts b{color:var(--cream);font-weight:500}
+@media (max-width:760px){.tree{display:none}.score{min-width:0}.score .n b{font-size:22px}.comm div{font-size:12.5px}}
+@media (prefers-reduced-motion:reduce){.comm div,.card{transition:none}}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="hud" id="hud"></div>
+    <div class="score"><div class="t">Evolution Stadium <small id="evLbl">flat</small></div>
+      <div class="n"><div><b id="recN">0.00</b> <span>m record</span></div><div><b id="genN" style="color:var(--cream)">0</b> <span>gen</span></div></div>
+      <svg id="curve" viewBox="0 0 220 34" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="st" id="modeSt">coaches <b>waiting</b></div><div class="st" id="status">warm-up lap</div></div>
+    <div class="tree" id="tree"></div>
+    <div class="card" id="card"><div class="k" id="cardK"></div><div class="b" id="cardB"></div><div class="d" id="cardD"></div></div>
+    <div class="comm" id="comm"></div>
+    <div class="gate" id="gate"><div><h1>Six AI coaches breed a creature. Physics is the only judge.</h1><p>Every generation, each coach bets one hypothesis. The engine kills most of them on the track. The survivors compound. The crowd changes the course.</p><button class="big" id="openBtn">Open the stadium</button></div></div>
+  </div>
+  <div class="ticker" id="ticker"><div class="tk"><i>the notebook starts when the first heat ends</i></div></div>
+  <div class="signs">
+    <button class="go" id="runBtn">Start evolution</button>
+    <div class="grp"><span class="lbl">course</span><button data-ev="flat" aria-pressed="true">Flat</button><button data-ev="stairs">Stairs</button><button data-ev="ice">Ice</button><button data-ev="gap">Gap</button></div>
+    <div class="grp"><span class="lbl">coaches</span><button id="cClaude" aria-pressed="true">Claude</button><button id="cBlind">Blind mutation</button></div>
+    <div class="grp"><input type="text" id="nameIn" placeholder="Name the lineage" maxlength="22"><button id="nameBtn">Name</button></div>
+    <div class="right"><span class="counts" id="counts"><b>0</b> hypotheses · <b>0</b> rejected by physics · <b>0</b> kept</span><button id="voiceBtn" aria-pressed="true">Commentary on</button><button id="reportBtn">Copy report</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+<script>
+/*__SIM__*/
+</script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const COACHES=[
+ {name:'Dr. Okafor',style:'biomechanist: changes limb lengths and ratios, small and precise'},
+ {name:'Bibi',style:'gait theorist: works on phases and frequencies, keeps left and right half a cycle apart'},
+ {name:'Hal',style:'minimalist: fewer legs, lighter torso, lower amplitudes'},
+ {name:'Tuva',style:'maximalist: more legs, heavier torso, bigger amplitudes'},
+ {name:'Ren',style:'breeder: crosses two parents from the stable, legs from one and gait from the other'},
+ {name:'Sol',style:'tinkerer: one tiny nudge to one number'}];
+const LANE_COLORS=[0xF4C25B,0x8FB3C9,0xE4562E];const LET='ABCDEFGH';
+const seedE=SIM.evaluate(SIM.SEED,'flat',8);
+const A={gen:0,event:'flat',running:false,busy:false,mode:'pending',coachMode:'claude',sample:null,voice:true,names:{A:'Lineage A'},
+  champ:{genome:SIM.sanitize(SIM.SEED),e:seedE,coach:'the seed',hyp:'four legs, a calm gait, no coach yet',lin:'A'},
+  stable:[],lessons:[],book:[],lineage:[],history:[seedE.dist],stats:{prop:0,acc:0,rej:0},sinceRecord:0,lins:1,cooldown:0,plateau:false};
+A.stable.push({genome:A.champ.genome,e:seedE,lin:'A',coach:'seed',hyp:A.champ.hyp});
+A.lineage.push({gen:0,coach:'seed',hyp:A.champ.hyp,d:seedE.dist,lin:'A'});
+
+/* ---------- stage ---------- */
+const stageEl=$('stage');const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputEncoding=THREE.sRGBEncoding;stageEl.insertBefore(renderer.domElement,stageEl.firstChild);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0E1424);scene.fog=new THREE.Fog(0x0E1424,26,60);
+const camera=new THREE.PerspectiveCamera(38,1,0.1,200);
+scene.add(new THREE.HemisphereLight(0xBFD4FF,0x1A2030,0.75));
+const sun=new THREE.DirectionalLight(0xFFF1D6,1.1);sun.position.set(-6,14,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-20;sun.shadow.camera.right=20;sun.shadow.camera.top=20;sun.shadow.camera.bottom=-20;sun.shadow.camera.far=60;scene.add(sun);
+const world3=new THREE.Group();scene.add(world3);const LANES=[0,-4.2,4.2];
+function boxMesh(hx,hy,hz,color,opts={}){const m=new THREE.Mesh(new THREE.BoxGeometry(hx*2,hy*2,hz*2),new THREE.MeshStandardMaterial({color,roughness:opts.rough??0.65,metalness:0.05}));m.castShadow=!opts.noShadow;m.receiveShadow=true;return m}
+function buildTerrainMeshes(kind){const g=new THREE.Group();const w=SIM.makeWorld(kind);const col=kind==='ice'?0x9FC4D8:0x1E2A3F;
+  for(const b of w.terrain){for(let i=0;i<b.shapes.length;i++){const s=b.shapes[i];const m=boxMesh(s.halfExtents.x,s.halfExtents.y,s.halfExtents.z,col,{rough:kind==='ice'?0.15:0.9,noShadow:true});m.position.set(b.position.x,b.position.y,b.position.z);g.add(m)}}
+  const grid=new THREE.GridHelper(160,80,0x33405E,0x22304A);grid.position.y=0.011;g.add(grid);
+  for(const z of LANES){const l=boxMesh(60,0.005,0.02,0x5A6A8A,{noShadow:true});l.position.set(60,0.012,z+2.1);g.add(l)}
+  const start=boxMesh(0.02,0.005,7,0xF4C25B,{noShadow:true});start.position.set(0,0.013,0);g.add(start);return g}
+let terrainMesh=null;function setTerrain(kind){if(terrainMesh)world3.remove(terrainMesh);terrainMesh=buildTerrainMeshes(kind);world3.add(terrainMesh)}
+function creatureMeshes(c,color){const list=[];for(const b of c.bodies){const grp=new THREE.Group();for(let i=0;i<b.shapes.length;i++){const s=b.shapes[i];const m=boxMesh(s.halfExtents.x,s.halfExtents.y,s.halfExtents.z,color);const o=b.shapeOffsets[i];m.position.set(o.x,o.y,o.z);grp.add(m)}
+  if(b===c.torso){const t=c.torsoDims;for(const sz of [-1,1]){const eye=new THREE.Mesh(new THREE.SphereGeometry(0.07,12,12),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:.3}));eye.position.set(t.w/2+0.02,t.h*0.15,sz*t.d*0.25);grp.add(eye);const pupil=new THREE.Mesh(new THREE.SphereGeometry(0.035,10,10),new THREE.MeshStandardMaterial({color:0x111111}));pupil.position.set(t.w/2+0.075,t.h*0.15,sz*t.d*0.25);grp.add(pupil)}}
+  world3.add(grp);list.push({b,grp})}return list}
+const player={entries:[],t:0,secs:8,loop:false,active:false,resolve:null,camX:0};
+function stopPlay(){for(const e of player.entries){for(const m of e.meshes)world3.remove(m.grp)}player.entries=[];player.active=false;$('hud').innerHTML='';if(player.resolve){const r=player.resolve;player.resolve=null;r()}}
+function spawn(en,i){const w=SIM.makeWorld(A.event);const g=SIM.sanitize(en.genome);const c=SIM.build(w,g,0,0,w.mat);c.torsoDims=g.torso;return {w,c,meshes:creatureMeshes(c,en.color??LANE_COLORS[i]),genome:g}}
+function play(entries,opts={}){stopPlay();player.loop=!!opts.loop;player.secs=opts.secs||8;player.t=0;player.active=true;
+  player.entries=entries.map((en,i)=>{const s=spawn(en,i);const tag=document.createElement('div');tag.className='lane';tag.innerHTML=`<div class="c"><span>${en.coach||''}</span><b>0.00 m</b></div><div class="h">${en.hyp||''}</div><div class="bar"><i></i></div>`;$('hud').appendChild(tag);
+    return {...s,lane:LANES[i]||0,tag,color:en.color??LANE_COLORS[i],ref:en}});
+  return new Promise(res=>{player.resolve=res})}
+let last=performance.now(),acc=0;const DT=1/60;
+function frame(now){requestAnimationFrame(frame);const w=stageEl.clientWidth,h=stageEl.clientHeight;const pr=renderer.getPixelRatio();if(renderer.domElement.width!==Math.floor(w*pr)||renderer.domElement.height!==Math.floor(h*pr)){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  let dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(player.active){acc+=dt;while(acc>=DT){acc-=DT;if(player.t<player.secs){for(const e of player.entries){SIM.drive(e.c,player.t);e.w.step(DT)}player.t+=DT}else if(player.loop){for(const e of player.entries){for(const m of e.meshes)world3.remove(m.grp);const s=spawn(e.ref,0);e.w=s.w;e.c=s.c;e.meshes=s.meshes}player.t=0}else{player.active=false;const r=player.resolve;player.resolve=null;setTimeout(()=>r&&r(),600)}}
+    let lead=-1e9;const bestD=Math.max(0.5,A.champ.e.raw||1);for(const e of player.entries){for(const m of e.meshes){m.grp.position.set(m.b.position.x,m.b.position.y,m.b.position.z+e.lane);m.grp.quaternion.set(m.b.quaternion.x,m.b.quaternion.y,m.b.quaternion.z,m.b.quaternion.w)}
+      const x=e.c.torso.position.x;lead=Math.max(lead,x);const p=new THREE.Vector3(x,e.c.torso.position.y+1.15,e.lane).project(camera);e.tag.style.left=((p.x+1)/2*w)+'px';e.tag.style.top=((1-p.y)/2*h-6)+'px';e.tag.querySelector('b').textContent=x.toFixed(2)+' m';e.tag.querySelector('.bar i').style.width=Math.max(0,Math.min(100,x/bestD*100))+'%'}
+    if(lead>-1e8)player.camX+=(lead-player.camX)*0.06}
+  camera.position.set(player.camX+1.5,4.6,13.5);camera.lookAt(player.camX+1.5,0.9,0);renderer.render(scene,camera)}
+requestAnimationFrame(frame);
+
+/* ---------- commentary ---------- */
+const synth=window.speechSynthesis;let voices=[];if(synth){voices=synth.getVoices();synth.onvoiceschanged=()=>{voices=synth.getVoices()}}
+function speak(lines){if(!A.voice||!synth)return;synth.cancel();lines.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.text);const en=voices.filter(v=>/en/i.test(v.lang));if(en.length)u.voice=en[(i*3+1)%en.length];u.rate=i?1.12:0.95;u.pitch=i?1.25:0.85;synth.speak(u)})}
+function showComm(lines){const c=$('comm');c.innerHTML='';lines.forEach((l,i)=>{const d=document.createElement('div');d.className=i?'lou':'vic';d.innerHTML=`<b>${l.who}</b>${l.text}`;c.appendChild(d);setTimeout(()=>d.classList.add('in'),80+i*900)});speak(lines)}
+function offlineComm(res,best,accepted){const top=res[0],flops=res.filter(r=>r.e.flipped||r.e.fell).length;return [{who:'Vic',text:`${top.coach}'s "${top.hyp}" takes the heat at ${top.e.dist.toFixed(2)} metres${accepted?', a new record':', short of the record'}.`},{who:'Lou',text:`${flops} of ${res.length} went over. ${accepted?'The notebook gets a new page!':'The champion sleeps easy tonight.'}`}]}
+
+/* ---------- coaches ---------- */
+const gt=g=>JSON.stringify(g);
+function parentsForPrompt(){const alts=A.stable.filter(s=>s.genome!==A.champ.genome).slice(0,2);return alts}
+function coachPrompt(){const ch=A.champ;const alts=parentsForPrompt();return `You are six coaches breeding a walking creature in a rigid-body physics simulation. Event: ${A.event} (flat track; stairs = rising steps from x=3; ice = almost no friction; gap = a 1 m hole at x=6). Score = metres travelled along +x in 8 seconds, scaled down while the torso is not upright; flipping cuts the score by 70%.
+Champion (lineage ${ch.lin}) genome: ${gt(ch.genome)}
+Champion score: ${ch.e.dist} m (raw ${ch.e.raw} m, upright ${Math.round(ch.e.upright*100)}%${ch.e.flipped?', flipped':''}).
+${alts.map((a,i)=>`Stable alternate ${i+1} (lineage ${a.lin}, ${a.e.dist} m): ${gt(a.genome)}`).join('\n')}
+Genome rules: torso {w 0.5-2.0, h 0.2-0.8, d 0.3-1.2, mass 2-10}. legs: 2 to 6 entries {x,z in -1..1 (attachment as a fraction of the torso half size), up 0.25-1.1, lo 0.25-1.1 (segment lengths, metres), r 0.05-0.18, hip {amp 0-10, f 0.3-2.5, ph -3.2..3.2}, knee {same}}. Each joint motor runs at angular speed amp*sin(2*pi*f*t+ph). Legs on opposite sides usually want phases half a cycle apart.
+${A.plateau?'PLATEAU: the record has not moved for several generations. Small nudges are forbidden this round. Every coach must change structure: leg count, leg placement, torso proportions, or a different gait pattern (phase relationships, frequency).':''}
+Lessons so far, newest last:
+${A.lessons.slice(-14).join('\n')||'(none yet)'}
+Coaches and styles:
+${COACHES.map(c=>`- ${c.name}: ${c.style}`).join('\n')}
+Coaches 1-4 mutate the champion. Coach Ren crosses the champion with a stable alternate (if given). Coach Sol mutates a stable alternate if given, else the champion. Return FULL genomes, not diffs. A hypothesis is a causal claim in at most 12 words.
+Reply with only a JSON array of 6 objects: {"coach": string, "hypothesis": string, "genome": {...}}.`}
+async function proposeClaude(){const out=await A.sample.json(coachPrompt(),{modelTier:A.plateau?'default':'quick',cache:false});if(!Array.isArray(out))throw{code:'invalid_json'};
+  return out.filter(o=>o&&o.genome&&typeof o.hypothesis==='string').slice(0,6).map((o,i)=>({coach:String(o.coach||COACHES[i%6].name).slice(0,24),hyp:String(o.hypothesis).slice(0,100),genome:SIM.sanitize(o.genome),src:'claude',lin:(i===4||i===5)&&parentsForPrompt().length?parentsForPrompt()[0].lin:A.champ.lin}))}
+function proposeOffline(n){const out=[];for(let i=0;i<n;i++){const c=COACHES[(A.gen*6+i)%6];const par=(i>=4&&A.stable.length>1)?A.stable[1+Math.floor(Math.random()*(A.stable.length-1))]:{genome:A.champ.genome,lin:A.champ.lin};let m=SIM.mutate(par.genome);if(A.plateau)m=SIM.mutate(SIM.mutate(m.genome).genome);out.push({coach:c.name,hyp:m.why,genome:m.genome,src:'rules',lin:par.lin})}return out}
+async function propose(){if(A.coachMode==='blind')return proposeOffline(6);if(A.cooldown>0){A.cooldown--;setStatus('coaches rate-limited, rules stand in');return proposeOffline(6)}
+  if(A.sample&&A.mode!=='offline'){try{const p=await proposeClaude();setMode('claude');if(p.length<6)p.push(...proposeOffline(6-p.length));return p}catch(e){const code=e&&e.code;if(['not_granted','sampling_disabled','not_declared','capability_disabled'].includes(code))setMode('offline');else{if(code==='rate_limited')A.cooldown=3;setStatus('coaches unavailable ('+(code||'error')+'), rules stood in')}return proposeOffline(6)}}
+  return proposeOffline(6)}
+async function commentary(res,best,accepted){if(A.sample&&A.mode==='claude'&&A.coachMode==='claude'){try{const o=await A.sample.json(`Two sports commentators call a heat of evolved creatures. Vic is dry and precise; Lou is excitable. Event: ${A.event}. Generation ${A.gen}. Results (coach, hypothesis, score in metres, flipped?): ${res.map(r=>`${r.coach}: "${r.hyp}" ${r.e.dist} m${r.e.flipped?' FLIPPED':''}${r.e.fell?' FELL':''}`).join('; ')}. Record before this heat: ${A.prevRecord} m. ${accepted?'A NEW RECORD was set by '+best.coach:'No new record.'}${A.plateau?' The lineage had been stuck; a new lineage just entered.':''} Reply with only JSON {"vic": "<= 18 words", "lou": "<= 18 words"}.`,{modelTier:'quick',cache:false});
+    if(o&&o.vic&&o.lou)return [{who:'Vic',text:String(o.vic).slice(0,160)},{who:'Lou',text:String(o.lou).slice(0,160)}]}catch(e){}}
+  return offlineComm(res,best,accepted)}
+
+/* ---------- the loop ---------- */
+function setMode(m){A.mode=m;const c=$('modeSt');c.className='st '+(m==='claude'?'':'off');c.innerHTML='coaches <b>'+(m==='claude'?(A.coachMode==='blind'?'blind mutation':'Claude'):m==='offline'?'rules (offline)':'waiting')+'</b>'}
+function setStatus(t){$('status').innerHTML=t}
+function warmup(){play([{genome:A.champ.genome,coach:A.names[A.champ.lin]||('Lineage '+A.champ.lin),hyp:A.champ.hyp}],{loop:true,secs:6});setStatus('warm-up lap · <b>'+(A.names[A.champ.lin]||'lineage '+A.champ.lin)+'</b>')}
+function card(k,b,d,cls){$('cardK').textContent=k;$('cardK').className='k '+cls;$('cardB').textContent=b;$('cardD').textContent=d;const c=$('card');c.classList.add('in');return new Promise(r=>setTimeout(()=>{c.classList.remove('in');setTimeout(r,250)},2400))}
+function pushStable(entry){const key=gt(entry.genome);if(A.stable.some(s=>gt(s.genome)===key))return;A.stable.push(entry);A.stable.sort((a,b)=>b.e.dist-a.e.dist);A.stable.length=Math.min(A.stable.length,6)}
+async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=A.champ.e.dist;$('genN').textContent=A.gen;
+  setStatus(A.plateau?'plateau · the coaches rethink the body…':'the coaches are thinking…');const props=await propose();
+  setStatus('physics is judging six hypotheses…');await new Promise(r=>setTimeout(r,40));
+  const res=props.map(p=>({...p,e:SIM.evaluate(p.genome,A.event,8)}));res.sort((a,b)=>b.e.dist-a.e.dist);
+  const best=res[0];const accepted=best.e.dist>A.champ.e.dist;
+  setStatus('heat '+A.gen);
+  const heat=play(res.slice(0,3).map((r,i)=>({genome:r.genome,coach:r.coach,hyp:r.hyp,color:LANE_COLORS[i]})),{secs:8});
+  const commP=commentary(res,best,accepted);await heat;
+  for(const r of res){A.stats.prop++;const kept=accepted&&r===best;if(kept)A.stats.acc++;else A.stats.rej++;const d=r.e.dist-A.prevRecord;
+    A.lessons.push(`${kept?'KEPT':'rejected'}: "${r.hyp}" (${r.coach}, lineage ${r.lin}) -> ${r.e.dist} m (${d>=0?'+':''}${d.toFixed(2)} vs record)${r.e.flipped?', flipped':''}${r.e.fell?', fell':''}`);
+    A.book.unshift({gen:A.gen,coach:r.coach,hyp:r.hyp,d,kept,flop:r.e.flipped||r.e.fell,src:r.src});pushStable({genome:r.genome,e:r.e,lin:r.lin,coach:r.coach,hyp:r.hyp})}
+  const wasPlateau=A.plateau;A.plateau=false;
+  if(accepted){const overtook=best.lin!==A.champ.lin;A.champ={genome:best.genome,e:best.e,coach:best.coach,hyp:best.hyp,lin:best.lin};A.lineage.push({gen:A.gen,coach:best.coach,hyp:best.hyp,d:best.e.dist,lin:best.lin});A.sinceRecord=0;
+    if(overtook){A.lessons.push(`LINEAGE ${best.lin} OVERTAKES: it now holds the record`);A.book.unshift({gen:A.gen,coach:'lineage '+best.lin,hyp:'overtakes and holds the record',d:0,kept:true,flop:false,src:'crowd'})}}
+  else A.sinceRecord++;
+  A.history.push(A.champ.e.dist);renderPanel();
+  await card(accepted?'kept · new record':'rejected · '+res.length+' of '+res.length,accepted?best.hyp:best.hyp,accepted?`${best.coach} · ${best.e.dist.toFixed(2)} m (+${(best.e.dist-A.prevRecord).toFixed(2)})`:`best of the heat ${best.e.dist.toFixed(2)} m · record stays ${A.champ.e.dist.toFixed(2)} m`,accepted?'acc':'rej');
+  if(!accepted&&A.sinceRecord>=4&&!wasPlateau){A.plateau=true;const L=LET[A.lins++]||'Z';A.names[L]=A.names[L]||('Lineage '+L);let g=SIM.SEED;for(let k=0;k<3;k++)g=SIM.mutate(g).genome;const e=SIM.evaluate(g,A.event,8);pushStable({genome:g,e,lin:L,coach:'the seed',hyp:'a fresh body enters'});
+    A.lessons.push(`PLATEAU after ${A.sinceRecord} dry generations: lineage ${L} enters from the seed; structural changes only next round`);A.book.unshift({gen:A.gen,coach:'the stadium',hyp:`plateau · lineage ${L} enters`,d:0,kept:false,flop:false,src:'crowd'});A.sinceRecord=0;renderPanel();await card('plateau',`${A.names[L]} enters the stadium`,'structural changes only next round','rej')}
+  const lines=await commP;showComm(lines);
+  A.busy=false;if(A.running){warmup();setTimeout(()=>{if(A.running)generation()},700)}else warmup()}
+
+/* ---------- panel bits ---------- */
+function renderPanel(){$('recN').textContent=A.champ.e.dist.toFixed(2);$('counts').innerHTML=`<b>${A.stats.prop}</b> hypotheses · <b>${A.stats.rej}</b> rejected by physics · <b>${A.stats.acc}</b> kept`;
+  const H=A.history;const mx=Math.max(0.5,...H);const pts=H.map((v,i)=>`${(i/Math.max(1,H.length-1))*216+2},${32-Math.max(0,v)/mx*28}`).join(' ');$('curve').innerHTML=`<polyline points="${pts}" fill="none" stroke="#F4C25B" stroke-width="2" stroke-linejoin="round"/><circle cx="${pts.split(' ').pop().split(',')[0]}" cy="${pts.split(' ').pop().split(',')[1]}" r="2.5" fill="#F4C25B"/>`;
+  $('tree').innerHTML=A.lineage.slice(-6).map((l,i,arr)=>`${i?'<span class="arrow">→</span>':''}<span class="node ${l.lin}" title="${l.coach}: ${l.hyp}"><b>${l.lin}${l.gen}</b> ${l.d.toFixed(2)} m <i>· ${l.coach}</i></span>`).join('');
+  $('ticker').innerHTML=A.book.slice(0,40).map(b=>`<div class="tk ${b.kept?'acc':''} ${b.flop?'flop':''} ${b.src==='crowd'?'crowd':''}"><span class="g">g${b.gen}</span><span>${b.kept?'✓':b.src==='crowd'?'◆':'✗'} ${b.coach} <i>· ${b.hyp}</i></span><span class="d">${b.flop?'flipped ':''}${b.src==='crowd'?'':(b.d>=0?'+':'')+b.d.toFixed(2)}</span></div>`).join('')||'<div class="tk"><i>the notebook starts when the first heat ends</i></div>';
+  $('runBtn').textContent=A.running?'Pause after this heat':'Start evolution'}
+$('openBtn').onclick=()=>{$('gate').remove();if(synth){try{synth.cancel();synth.speak(new SpeechSynthesisUtterance(' '))}catch(e){}}A.running=true;renderPanel();generation()};
+$('runBtn').onclick=()=>{A.running=!A.running;renderPanel();if(A.running&&!A.busy)generation()};
+$('voiceBtn').onclick=e=>{A.voice=!A.voice;e.target.setAttribute('aria-pressed',String(A.voice));e.target.textContent=A.voice?'Commentary on':'Commentary off';if(!A.voice&&synth)synth.cancel()};
+$('cClaude').onclick=()=>{A.coachMode='claude';$('cClaude').setAttribute('aria-pressed','true');$('cBlind').setAttribute('aria-pressed','false');setMode(A.mode)};
+$('cBlind').onclick=()=>{A.coachMode='blind';$('cBlind').setAttribute('aria-pressed','true');$('cClaude').setAttribute('aria-pressed','false');setMode(A.mode);A.lessons.push('COACHES SWITCHED to blind random mutation (ablation)')};
+document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{const ev=b.dataset.ev;if(ev===A.event)return;A.event=ev;document.querySelectorAll('[data-ev]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));$('evLbl').textContent=ev;setTerrain(ev);
+  const before=A.champ.e.dist;for(const s of A.stable)s.e=SIM.evaluate(s.genome,ev,8);A.stable.sort((a,b)=>b.e.dist-a.e.dist);A.champ.e=SIM.evaluate(A.champ.genome,ev,8);A.sinceRecord=0;
+  A.lessons.push(`EVENT CHANGED to ${ev}: the champion now scores ${A.champ.e.dist} m here (was ${before})`);A.book.unshift({gen:A.gen,coach:'the crowd',hyp:`changed the course to ${ev} · champion re-scored ${A.champ.e.dist.toFixed(2)} m`,d:0,kept:false,flop:false,src:'crowd'});renderPanel();if(!A.busy)warmup()});
+$('nameBtn').onclick=()=>{const v=$('nameIn').value.trim();if(v){A.names[A.champ.lin]=v;$('nameIn').value='';renderPanel();if(!A.busy)warmup()}};
+$('reportBtn').onclick=async e=>{const txt=`Evolution Stadium · event ${A.event}\n${A.stats.prop} hypotheses, ${A.stats.rej} rejected by physics, ${A.stats.acc} kept. Record ${A.champ.e.dist.toFixed(2)} m (${A.names[A.champ.lin]||'lineage '+A.champ.lin}).\n`+A.lineage.map(l=>`gen ${l.gen} ${l.d.toFixed(2)} m — ${l.coach}: ${l.hyp}`).join('\n');try{await navigator.clipboard.writeText(txt);e.target.textContent='Copied'}catch(err){e.target.textContent='Copy failed'}};
+
+/* ---------- boot ---------- */
+setTerrain('flat');renderPanel();warmup();
+(async()=>{try{const s=window.claude&&window.claude.use?await window.claude.use('sample'):null;A.sample=s;setMode(s?'claude':'offline');if(!s)setStatus('warm-up lap · rule-based coaches (no Claude in this view)')}catch(e){setMode('offline')}})();
+</script>

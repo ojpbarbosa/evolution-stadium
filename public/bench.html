@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Bench · Evolution Stadium</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"><link rel="stylesheet" href="/style.css"></head>
+<body><div class="wrap">
+<div class="nav"><a href="/">stadium</a><a href="/vote">crowd</a><a class="on" href="/bench">bench</a><a href="/about">about</a></div>
+<div class="eyebrow">the ablation</div><h1>Coaches with hypotheses against blind mutation. Same engine, same budget.</h1>
+<p class="dim">Each arm runs the same loop headless: six proposals per generation, a stable of six, keep only what beats the record. One arm asks the model; the other mutates at random. No race, no voices, just the two record curves.</p>
+<div class="box"><div class="row"><label>generations <input type="text" id="gens" value="12" style="width:70px;flex:none"></label><label>course <select id="course" style="font:inherit;padding:8px;border-radius:10px;background:#0E1424;color:var(--cream);border:1px solid var(--line)"><option>flat</option><option>stairs</option><option>ice</option><option>gap</option></select></label><button class="btn" id="run">Run both arms</button><span class="dim" id="st"></span></div></div>
+<div class="box"><svg id="chart" viewBox="0 0 720 260" width="100%" role="img" aria-label="Record per generation, coaches versus blind"></svg><div class="row" style="margin-top:8px"><span><span style="color:var(--lamp)">■</span> coaches (model)</span><span><span style="color:var(--moon)">■</span> blind mutation</span></div></div>
+<div class="grid2"><div class="box"><div class="eyebrow">coaches</div><div class="big" id="cFinal">—</div><div class="dim" id="cNote"></div></div><div class="box"><div class="eyebrow">blind</div><div class="big" id="bFinal" style="color:var(--moon)">—</div><div class="dim" id="bNote"></div></div></div>
+<div class="box"><div class="eyebrow">log</div><pre id="log" style="white-space:pre-wrap;font-family:var(--mono);font-size:12px;color:var(--cream-dim);margin:8px 0 0;max-height:40vh;overflow:auto"></pre><a id="dl" class="dim" href="#" download="bench.json" hidden>download the run as JSON</a></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script><script src="/sim.js"></script>
+<script>
+const $=id=>document.getElementById(id);const V={speed:1,posture:1,economy:0};const sc=e=>SIM.score(e,V);
+function log(s){$('log').textContent+=s+'\n';$('log').scrollTop=1e9}
+async function arm(kind,gens,course){let champ={genome:SIM.sanitize(SIM.SEED),e:SIM.evaluate(SIM.SEED,course),lin:'A'};champ.score=sc(champ.e);const stable=[champ];const lessons=[];const curve=[champ.score];let model='rules';
+  for(let g=1;g<=gens;g++){let props=[];
+    if(kind==='coaches'){try{const r=await fetch('/api/coaches',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({champion:{genome:champ.genome,e:champ.e,score:champ.score,gait:SIM.gait(champ.e),lin:'A'},alts:stable.slice(1,3).map(s=>({genome:s.genome,score:s.score,gait:SIM.gait(s.e),lin:'A'})),event:course,lessons,values:V})});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);model=j.model;props=(j.proposals||[]).map(p=>({coach:p.coach,hyp:p.hypothesis,genome:SIM.sanitize(p.genome)}))}catch(e){log(`gen ${g}: model call failed (${e.message}); rules stood in`)}}
+    while(props.length<6){const par=props.length>=4&&stable.length>1?stable[1]:champ;const m=SIM.mutate(par.genome);props.push({coach:'rule',hyp:m.why,genome:m.genome})}
+    const res=props.map(p=>({...p,e:SIM.evaluate(p.genome,course)})).map(r=>({...r,score:sc(r.e)})).sort((a,b)=>b.score-a.score);const best=res[0];
+    for(const r of res){lessons.push(`${r.score>champ.score&&r===best?'KEPT':'rejected'}: "${r.hyp}" (${r.coach}) -> ${r.score} (${(r.score-champ.score).toFixed(2)} vs record)${r.e.flipped?', flipped':''}`);if(!stable.some(s=>JSON.stringify(s.genome)===JSON.stringify(r.genome))){stable.push({genome:r.genome,e:r.e,score:r.score});stable.sort((a,b)=>b.score-a.score);stable.length=Math.min(stable.length,6)}}
+    if(best.score>champ.score){champ={genome:best.genome,e:best.e,score:best.score,lin:'A'};log(`${kind} gen ${g}: KEPT ${best.score} m · ${best.coach}: ${best.hyp}`)}else log(`${kind} gen ${g}: rejected all six · best ${best.score} (${best.coach})`);
+    curve.push(champ.score);draw();$('st').textContent=`${kind} · generation ${g}/${gens}`;await new Promise(r=>setTimeout(r,20))}
+  return {curve,model,champ}}
+let R={coaches:null,blind:null};
+function draw(){const s=$('chart');const all=[...(R.coaches?.curve||[]),...(R.blind?.curve||[])];const mx=Math.max(0.5,...all);const n=Math.max((R.coaches?.curve||[]).length,(R.blind?.curve||[]).length,2);
+  const line=(c,col)=>c&&c.length?`<polyline fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" points="${c.map((v,i)=>`${40+i/(n-1)*660},${230-Math.max(0,v)/mx*200}`).join(' ')}"/>`:'';
+  s.innerHTML=`<g font-family="IBM Plex Mono" font-size="11" fill="#A9A394"><line x1="40" y1="230" x2="700" y2="230" stroke="#283049"/><line x1="40" y1="30" x2="40" y2="230" stroke="#283049"/><text x="8" y="34">${mx.toFixed(1)}m</text><text x="8" y="234">0</text><text x="700" y="248" text-anchor="end">generation ${n-1}</text></g>${line(R.blind?.curve,'#8FB3C9')}${line(R.coaches?.curve,'#F4C25B')}`}
+$('run').onclick=async()=>{$('run').disabled=true;$('log').textContent='';R={coaches:null,blind:null};const gens=Math.max(2,Math.min(40,Number($('gens').value)||12));const course=$('course').value;
+  const pc=arm('coaches',gens,course).then(r=>{R.coaches=r;$('cFinal').textContent=r.champ.score.toFixed(2)+' m';$('cNote').textContent=`model ${r.model} · gait ${SIM.gait(r.champ.e)} · ${r.champ.genome.legs.length} legs`;draw()});
+  const pb=arm('blind',gens,course).then(r=>{R.blind=r;$('bFinal').textContent=r.champ.score.toFixed(2)+' m';$('bNote').textContent=`random mutation · gait ${SIM.gait(r.champ.e)} · ${r.champ.genome.legs.length} legs`;draw()});
+  await Promise.all([pc,pb]);$('st').textContent='done';$('run').disabled=false;const dl=$('dl');dl.href='data:application/json,'+encodeURIComponent(JSON.stringify({course,gens,values:V,coaches:R.coaches,blind:R.blind},null,1));dl.hidden=false};
+draw();
+</script></body></html>
