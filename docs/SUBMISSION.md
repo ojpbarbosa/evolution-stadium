@@ -25,7 +25,7 @@ The crowd scans a QR code and votes the next course (flat, stairs, ice, a gap); 
 Three.js and cannon.js in the browser: the same engine and timestep judge the genomes headless and replay the race, so what you watch is exactly what was scored (85 ms per evaluation, deterministic). A small Node server on one Fly machine runs the coaches (gpt-5.4-mini; gpt-5.4 as head coach on plateaus; Claude Haiku and Sonnet as a drop-in) and an in-memory room for the crowd. Proposals for the next generation are requested while the current heat races, so the stadium never waits on the model.
 
 ### The result
-[From /bench at 07:30: coaches with hypotheses reached __ m in __ generations; blind random mutation under the same budget reached __ m. State it either way.] The 2024 paper closest to this, RoboMorph, never ran that baseline. We run it live.
+First bench run at 03:40, flat course, six generations, six proposals each: coaches with hypotheses (gpt-5.4-mini) reached 2.26 m with a six-legged walk; blind random mutation under the same budget reached 0.80 m with a five-legged shuffle. Re-run it live at the booth and state it either way. The 2024 paper closest to this, RoboMorph, never ran that baseline. We run it live.
 
 ### Challenges we ran into
 Creatures that fold instead of stand (feet pads and stiffer motors fixed it). A champion that gets stuck at a local gait (the stable, crossover and the plateau protocol fixed it). Keeping the loop fast enough to feel like a sport (pipelining the model call behind the race).
