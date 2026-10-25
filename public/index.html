@@ -133,7 +133,11 @@ requestAnimationFrame(frame);
 /* ---------- sound ---------- */
 let AC=null;function cheer(){if(!A.voice)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const n=AC.sampleRate*1.4;const buf=AC.createBuffer(1,n,AC.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<n;i++){const t=i/n;d[i]=(Math.random()*2-1)*Math.pow(Math.sin(Math.PI*Math.min(1,t*1.6)),2)*0.5}const src=AC.createBufferSource();src.buffer=buf;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=0.6;const g=AC.createGain();g.gain.value=0.35;src.connect(f);f.connect(g);g.connect(AC.destination);src.start()}catch(e){}}
 const synth=window.speechSynthesis;let voices=[];if(synth){voices=synth.getVoices();synth.onvoiceschanged=()=>{voices=synth.getVoices()}}
-function speak(lines){if(!A.voice||!synth)return;synth.cancel();lines.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.text);const en=voices.filter(v=>/en/i.test(v.lang));if(en.length)u.voice=en[(i*3+1)%en.length];u.rate=i?1.12:0.95;u.pitch=i?1.25:0.85;synth.speak(u)})}
+let audioSeq=0,curAudio=null;function stopAudio(){audioSeq++;if(curAudio){try{curAudio.pause()}catch(e){}curAudio=null}}
+function speakBrowser(lines){if(!synth)return;synth.cancel();lines.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.text);const en=voices.filter(v=>/en/i.test(v.lang));if(en.length)u.voice=en[(i*3+1)%en.length];u.rate=i?1.12:0.95;u.pitch=i?1.25:0.85;synth.speak(u)})}
+function ttsFetch(lines){if(A.tts!=='cartesia'||!A.voice||!lines||lines._audio)return lines;lines._audio=lines.map((l,i)=>fetch('/api/tts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({who:i?'lou':'vic',text:l.text})}).then(r=>r.ok?r.blob():Promise.reject(new Error('tts '+r.status))));lines._audio.forEach(p=>p.catch(()=>{}));return lines}
+function playBlob(b){return new Promise(res=>{const u=URL.createObjectURL(b);const a=new Audio(u);curAudio=a;const done=()=>{URL.revokeObjectURL(u);if(curAudio===a)curAudio=null;res()};a.onended=done;a.onerror=done;a.play().catch(done)})}
+async function speak(lines){if(!A.voice)return;stopAudio();if(synth)synth.cancel();if(A.tts!=='cartesia')return speakBrowser(lines);ttsFetch(lines);const seq=audioSeq;for(let i=0;i<lines.length;i++){if(seq!==audioSeq||!A.voice)return;let b;try{b=await lines._audio[i]}catch(e){if(i===0)speakBrowser(lines);return}if(seq!==audioSeq||!A.voice)return;await playBlob(b)}}
 function showComm(lines){const c=$('comm');c.innerHTML='';lines.forEach((l,i)=>{const d=document.createElement('div');d.className=i?'lou':'vic';d.innerHTML=`<b>${l.who}</b>${l.text}`;c.appendChild(d);setTimeout(()=>d.classList.add('in'),80+i*900)});speak(lines)}
 function offlineComm(res,best,accepted){const top=res[0],flops=res.filter(r=>r.e.flipped||r.e.fell).length;return [{who:'Vic',text:`${top.coach}'s "${top.hyp}" takes the heat at ${top.score.toFixed(2)}${accepted?', a new record':', short of the record'}.`},{who:'Lou',text:`${flops} of ${res.length} went over. ${accepted?'The notebook gets a new page!':'The champion sleeps easy tonight.'}`}]}
 
@@ -181,7 +185,7 @@ async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=sc
   const willPlateau=!accepted&&A.sinceRecord+1>=4;A.nextChamp=accepted?{genome:best.genome,e:best.e,coach:best.coach,hyp:best.hyp,lin:best.lin}:A.champ;
   if(willPlateau){const L=LET[A.lins++]||'Z';A.names[L]=A.names[L]||SIM.latinName(A.lins);const m=structural(A.champ.genome);const e=SIM.evaluate(m.genome,A.event);A.challenger={L,why:m.why};pushStable({genome:m.genome,e,lin:L,coach:'the head coach',hyp:m.why,pin:A.gen+6})}
   setStatus('heat '+A.gen);const heat=play(res.slice(0,3).map((r,i)=>({genome:r.genome,coach:r.coach,hyp:r.hyp,gait:SIM.gait(r.e),color:LANE_COLORS[i]})),{secs:SIM.SECS});
-  const overtook=accepted&&best.lin!==A.champ.lin;const commP=commentary(res,best,accepted,plateau,overtook);
+  const overtook=accepted&&best.lin!==A.champ.lin;const commP=commentary(res,best,accepted,plateau,overtook).then(ttsFetch);
   if(A.running)startPending(willPlateau);
   await heat;
   for(const r of res){A.stats.prop++;const kept=accepted&&r===best;if(kept)A.stats.acc++;else A.stats.rej++;const d=r.score-A.prevRecord;
@@ -205,7 +209,7 @@ function renderPanel(){$('recN').textContent=sc(A.champ.e).toFixed(2);$('counts'
   $('runBtn').textContent=A.running?'Pause after this heat':'Start evolution'}
 $('openBtn').onclick=()=>{$('gate').remove();if(synth){try{synth.cancel();synth.speak(new SpeechSynthesisUtterance(' '))}catch(e){}}try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}A.running=true;renderPanel();generation()};
 $('runBtn').onclick=()=>{A.running=!A.running;renderPanel();if(A.running&&!A.busy)generation()};
-$('voiceBtn').onclick=e=>{A.voice=!A.voice;e.target.setAttribute('aria-pressed',String(A.voice));e.target.textContent=A.voice?'Commentary on':'Commentary off';if(!A.voice&&synth)synth.cancel()};
+$('voiceBtn').onclick=e=>{A.voice=!A.voice;e.target.setAttribute('aria-pressed',String(A.voice));e.target.textContent=A.voice?'Commentary on':'Commentary off';if(!A.voice){stopAudio();if(synth)synth.cancel()}};
 $('cClaude').onclick=()=>{A.coachMode='model';$('cClaude').setAttribute('aria-pressed','true');$('cBlind').setAttribute('aria-pressed','false');setMode(A.mode);A.pending=null};
 $('cBlind').onclick=()=>{A.coachMode='blind';$('cBlind').setAttribute('aria-pressed','true');$('cClaude').setAttribute('aria-pressed','false');setMode(A.mode);A.pending=null;A.lessons.push('COACHES SWITCHED to blind random mutation (ablation)');note('the stadium','coaches switched to blind mutation')};
 document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>setEvent(b.dataset.ev,'the stadium'));
@@ -215,6 +219,6 @@ $('reportBtn').onclick=async e=>{const txt=`Evolution Stadium · course ${A.even
 
 /* ---------- boot ---------- */
 setTerrain('flat');renderPanel();warmup();$('qrImg').src='/api/qr?url='+encodeURIComponent(location.origin+'/vote');
-fetch('/api/health').then(r=>r.json()).then(h=>{A.model=h.model;setMode(h.provider==='none'?'offline':'model')}).catch(()=>setMode('offline'));
+fetch('/api/health').then(r=>r.json()).then(h=>{A.model=h.model;A.tts=h.voice||'browser';setMode(h.provider==='none'?'offline':'model')}).catch(()=>setMode('offline'));
 pushRoom();setInterval(pollRoom,2500);
 </script></body></html>

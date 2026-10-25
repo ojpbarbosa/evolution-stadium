@@ -3,6 +3,8 @@
 const express = require('express');
 const path = require('path');
 const QRCode = require('qrcode');
+const Anthropic = require('@anthropic-ai/sdk');
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ maxRetries: 1 }) : null;
 
 const app = express();
 app.use(express.json({ limit: '512kb' }));
@@ -11,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 /* ---------- LLM provider ---------- */
 const PROVIDER = process.env.ANTHROPIC_API_KEY ? 'anthropic' : process.env.OPENAI_API_KEY ? 'openai' : 'none';
 const MODELS = {
-  anthropic: { coach: process.env.COACH_MODEL || 'claude-haiku-5-5', head: process.env.HEAD_COACH_MODEL || 'claude-sonnet-5-5' },
+  anthropic: { coach: process.env.COACH_MODEL || 'claude-haiku-5-5', head: process.env.HEAD_COACH_MODEL || 'claude-haiku-5-5' },
   openai: { coach: process.env.COACH_MODEL || 'gpt-5.4-mini', head: process.env.HEAD_COACH_MODEL || 'gpt-5.4-mini' },
   none: { coach: 'rules', head: 'rules' },
 };
@@ -25,13 +27,14 @@ async function callJSON(system, user, { tier = 'coach', maxTokens = 3000, timeou
   try {
     let text;
     if (PROVIDER === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST', signal: ctl.signal,
-        headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model, max_tokens: maxTokens, system: system + '\nReply with JSON only.', messages: [{ role: 'user', content: user }] }),
-      });
-      if (!r.ok) throw Object.assign(new Error(`anthropic ${r.status} ${(await r.text()).slice(0, 200)}`), { code: 'upstream' });
-      const j = await r.json(); text = (j.content || []).map(c => c.text || '').join('');
+      const msg = await anthropic.messages.create({
+        model, max_tokens: maxTokens,
+        system: system + '\nReply with a single JSON object only, no prose before or after it.',
+        messages: [{ role: 'user', content: user }],
+        output_config: { effort: tier === 'head' ? 'medium' : 'low' },
+      }, { timeout: timeoutMs, signal: ctl.signal });
+      if (msg.stop_reason === 'refusal') throw Object.assign(new Error('refusal'), { code: 'refusal' });
+      text = msg.content.filter(b => b.type === 'text').map(b => b.text).join('');
     } else {
       const body = { model, messages: [{ role: 'system', content: system + '\nReply with a single JSON object only.' }, { role: 'user', content: user }], response_format: { type: 'json_object' }, max_completion_tokens: maxTokens };
       if (/^gpt-5/.test(model)) body.reasoning_effort = tier === 'head' ? 'low' : 'none';
@@ -93,6 +96,47 @@ app.post('/api/commentary', async (req, res) => {
   catch (e) { res.status(502).json({ error: e.code || 'error' }); }
 });
 
+/* ---------- voices (Cartesia) ---------- */
+const CARTESIA = process.env.CARTESIA_API_KEY || '';
+const CARTESIA_VERSION = '2026-08-14';
+const VOICE = { vic: process.env.CARTESIA_VOICE_VIC || '', lou: process.env.CARTESIA_VOICE_LOU || '', names: {} };
+const cartesiaHeaders = () => ({ authorization: `Bearer ${CARTESIA}`, 'x-api-key': CARTESIA, 'cartesia-version': CARTESIA_VERSION, 'content-type': 'application/json' });
+async function pickVoices() {
+  if (!CARTESIA) return;
+  try {
+    const r = await fetch('https://api.cartesia.ai/voices?language=en&limit=100', { headers: cartesiaHeaders() });
+    if (!r.ok) throw new Error(`voices ${r.status} ${(await r.text()).slice(0, 120)}`);
+    const list = ((await r.json()).data || []).filter(v => v.status !== 'archived').sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const masc = list.filter(v => v.gender === 'masculine'), fem = list.filter(v => v.gender === 'feminine');
+    VOICE.vic = VOICE.vic || (masc[0] || list[0] || {}).id || '';
+    VOICE.lou = VOICE.lou || (fem[0] || list[1] || list[0] || {}).id || '';
+    for (const k of ['vic', 'lou']) VOICE.names[k] = (list.find(v => v.id === VOICE[k]) || {}).name || VOICE[k];
+    console.log('cartesia voices: vic =', VOICE.names.vic, '· lou =', VOICE.names.lou, '· of', list.length);
+  } catch (e) { console.error('cartesia voices failed:', e.message); }
+}
+pickVoices();
+const ttsCache = new Map();
+app.get('/api/tts/voices', (req, res) => res.json({ enabled: !!CARTESIA, vic: VOICE.names.vic || VOICE.vic, lou: VOICE.names.lou || VOICE.lou }));
+app.post('/api/tts', async (req, res) => {
+  if (!CARTESIA) return res.status(503).json({ error: 'no_tts' });
+  const who = (req.body || {}).who === 'lou' ? 'lou' : 'vic';
+  const text = String((req.body || {}).text || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  if (!text) return res.status(400).json({ error: 'text required' });
+  if (!VOICE[who]) await pickVoices();
+  if (!VOICE[who]) return res.status(503).json({ error: 'no_voice' });
+  const key = who + '|' + text;
+  if (ttsCache.has(key)) { res.type('audio/mpeg'); return res.send(ttsCache.get(key)); }
+  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const r = await fetch('https://api.cartesia.ai/tts/bytes', { method: 'POST', signal: ctl.signal, headers: cartesiaHeaders(), body: JSON.stringify({ model_id: 'sonic-3.6', transcript: text, voice: { id: VOICE[who] }, language: 'en', output_format: { container: 'mp3', sample_rate: 44100, bit_rate: 64000 }, generation_config: who === 'lou' ? { speed: 1.15, emotion: 'excited' } : { speed: 1.0, emotion: 'calm' } }) });
+    if (!r.ok) throw new Error(`cartesia ${r.status} ${(await r.text()).slice(0, 160)}`);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (ttsCache.size >= 300) ttsCache.delete(ttsCache.keys().next().value);
+    ttsCache.set(key, buf); res.type('audio/mpeg').send(buf);
+  } catch (e) { console.error('tts failed:', e.message); res.status(502).json({ error: 'tts_failed' }); }
+  finally { clearTimeout(timer); }
+});
+
 /* ---------- the room (crowd) ---------- */
 const room = { gen: 0, record: 0, event: 'flat', lineageName: 'Lineage A', lineage: 'A', heat: [], notebook: [], votes: { flat: 0, stairs: 0, ice: 0, gap: 0 }, values: { speed: 1, posture: 1, economy: 0 }, names: {}, valuesBy: null, updatedAt: Date.now(), stats: { prop: 0, rej: 0, acc: 0 }, model: modelFor('coach'), provider: PROVIDER };
 app.get('/api/room', (req, res) => res.json(room));
@@ -101,7 +145,7 @@ app.post('/api/room/vote', (req, res) => { const c = String((req.body || {}).cou
 app.post('/api/room/name', (req, res) => { const n = String((req.body || {}).name || '').trim().slice(0, 24); if (!n) return res.status(400).json({ error: 'name' }); room.names[room.lineage] = n; room.lineageName = n; room.updatedAt = Date.now(); res.json({ ok: true, names: room.names }); });
 app.post('/api/room/values', (req, res) => { const v = req.body || {}; const cl = x => Math.max(0, Math.min(2, Number(x) || 0)); room.values = { speed: cl(v.speed ?? 1), posture: cl(v.posture ?? 1), economy: cl(v.economy ?? 0) }; room.valuesBy = String(v.by || 'the judge').slice(0, 24); room.updatedAt = Date.now(); res.json({ values: room.values }); });
 app.get('/api/qr', async (req, res) => { try { const url = String(req.query.url || `${req.protocol}://${req.get('host')}/vote`); const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#EEE7D6', light: '#0000' } }); res.type('image/svg+xml').send(svg); } catch (e) { res.status(500).end(); } });
-app.get('/api/health', (req, res) => res.json({ ok: true, provider: PROVIDER, model: modelFor('coach'), head: modelFor('head') }));
+app.get('/api/health', (req, res) => res.json({ ok: true, provider: PROVIDER, model: modelFor('coach'), head: modelFor('head'), voice: CARTESIA ? 'cartesia' : 'browser' }));
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => console.log(`Evolution Stadium on :${port} (${PROVIDER}: ${modelFor('coach')} / ${modelFor('head')})`));
