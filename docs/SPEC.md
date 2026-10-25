@@ -26,15 +26,17 @@ decides what counts.
    flipped, fell). `SIM.score(e, values)` → number. `SIM.gait(e)` → walk / hop / shuffle / crawl / tumble / statue.
 3. Race: top three replayed in separate worlds, same timestep, 1.3× speed, lane tags live.
 4. Select: keep only if it beats the record. Stable of six (dedupe by genome). Lessons and notebook entries for all.
-5. Plateau: four dry generations → a new lineage from the seed enters the stable, next round structural-only on the
-   head-coach model, replay card "plateau".
+5. Plateau: four dry generations → a challenger lineage branches from the champion with a structural mutation,
+   pinned in the stable for six generations; next round structural-only in the head-coach role (same model,
+   low reasoning effort), replay card "plateau". Proposals for generation N+1 are requested right after N is
+   judged, against the prospective champion, so they overlap the race without going stale.
 6. Values: the judge's weights re-score the stable and the champion without re-simulating. Logged.
 7. Room: the stadium pushes state to `/api/room/host` after every heat and polls `/api/room` every 2.5 s for votes,
    names and values.
 
 ## Backend
-Express on one Fly machine (`sjc`). `/api/coaches`, `/api/commentary` through OpenAI (gpt-5.4-mini; head coach
-gpt-5.4 with low reasoning) or Anthropic (claude-haiku-5-5 / claude-sonnet-5-5) when `ANTHROPIC_API_KEY` is set.
+Express on one Fly machine (`sjc`). `/api/coaches`, `/api/commentary` through OpenAI (gpt-5.4-mini; the head-coach role is the same model
+with low reasoning effort) or Anthropic (claude-haiku-5-5 / claude-sonnet-5-5) when `ANTHROPIC_API_KEY` is set.
 In-memory room. `/api/qr`. `/api/health`.
 
 ## Real versus simulated

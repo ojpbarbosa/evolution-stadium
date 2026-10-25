@@ -12,7 +12,7 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 const PROVIDER = process.env.ANTHROPIC_API_KEY ? 'anthropic' : process.env.OPENAI_API_KEY ? 'openai' : 'none';
 const MODELS = {
   anthropic: { coach: process.env.COACH_MODEL || 'claude-haiku-5-5', head: process.env.HEAD_COACH_MODEL || 'claude-sonnet-5-5' },
-  openai: { coach: process.env.COACH_MODEL || 'gpt-5.4-mini', head: process.env.HEAD_COACH_MODEL || 'gpt-5.4' },
+  openai: { coach: process.env.COACH_MODEL || 'gpt-5.4-mini', head: process.env.HEAD_COACH_MODEL || 'gpt-5.4-mini' },
   none: { coach: 'rules', head: 'rules' },
 };
 function modelFor(tier) { return MODELS[PROVIDER][tier === 'head' ? 'head' : 'coach']; }
@@ -62,7 +62,7 @@ const RULES = `Genome rules: torso {w 0.5-2.0, h 0.2-0.8, d 0.3-1.2, mass 2-10}.
 const EVENTS = { flat: 'flat track', stairs: 'rising steps from x=3, 12 cm each', ice: 'almost no friction', gap: 'a 1 m hole at x=6' };
 
 app.post('/api/coaches', async (req, res) => {
-  const { champion, alts = [], event = 'flat', lessons = [], plateau = false, values = {} } = req.body || {};
+  const { champion, alts = [], event = 'flat', lessons = [], kept = [], plateau = false, values = {} } = req.body || {};
   if (!champion || !champion.genome) return res.status(400).json({ error: 'champion required' });
   const sys = `You are six coaches breeding a walking creature in a rigid-body physics simulation. You never see the simulator; you only see genomes, scores and the notebook. You propose; physics decides.`;
   const user = `Event: ${event} (${EVENTS[event] || event}). Score = metres along +x in 7 seconds, times a posture factor (upright matters, weight ${values.posture ?? 1}), times a speed weight ${values.speed ?? 1}, minus an economy penalty on total motor amplitude (weight ${values.economy ?? 0}). Flipping cuts the score by 70%.
@@ -71,6 +71,7 @@ Champion result: score ${champion.score} (raw ${champion.e?.raw} m, upright ${Ma
 ${alts.map((a, i) => `Stable alternate ${i + 1} (lineage ${a.lin}, score ${a.score}, gait "${a.gait || '?'}"): ${JSON.stringify(a.genome)}`).join('\n')}
 ${RULES}
 ${plateau ? 'PLATEAU: the record has not moved for several generations. Small nudges are forbidden this round. Every coach must change structure: leg count, leg placement, torso proportions, or a different gait pattern (phase relationships, frequency).' : ''}
+Kept so far (what physics rewarded, oldest first): ${kept.join(' | ') || '(nothing yet)'}
 Lessons so far, newest last:
 ${lessons.slice(-16).join('\n') || '(none yet)'}
 Coaches and styles:
@@ -78,7 +79,7 @@ ${COACHES.map(c => `- ${c.name}: ${c.style}`).join('\n')}
 Coaches 1-4 mutate the champion. Ren crosses the champion with a stable alternate when one is given. Sol mutates a stable alternate when one is given, else the champion. Return FULL genomes, not diffs. A hypothesis is a causal claim in at most 12 words, in the coach's voice.
 Reply with JSON: {"proposals": [ {"coach": string, "hypothesis": string, "genome": {...}} x6 ]}`;
   try {
-    const { data, model } = await callJSON(sys, user, { tier: plateau ? 'head' : 'coach', timeoutMs: plateau ? 50000 : 25000 });
+    const { data, model } = await callJSON(sys, user, { tier: plateau ? 'head' : 'coach', timeoutMs: plateau ? 30000 : 25000 });
     const arr = Array.isArray(data) ? data : Array.isArray(data.proposals) ? data.proposals : [];
     res.json({ proposals: arr.slice(0, 6), model, provider: PROVIDER });
   } catch (e) { console.error('coaches failed:', e.code || '', String(e.message).slice(0, 200)); res.status(502).json({ error: e.code || 'error', message: String(e.message).slice(0, 200), provider: PROVIDER }); }

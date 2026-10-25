@@ -94,7 +94,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}button
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const COACHES=['Dr. Okafor','Bibi','Hal','Tuva','Ren','Sol'];const LANE_COLORS=[0xF4C25B,0x8FB3C9,0xE4562E];const LET='ABCDEFGH';const REPLAY_SPEED=1.3;
+const COACHES=['Dr. Okafor','Bibi','Hal','Tuva','Ren','Sol'];const LANE_COLORS=[0xF4C25B,0x8FB3C9,0xE4562E];const LET='ABCDEFGH';const REPLAY_SPEED=1.5;
 const A={gen:0,event:'flat',running:false,busy:false,mode:'pending',coachMode:'model',model:'…',voice:true,names:{A:SIM.latinName(0)},values:{speed:1,posture:1,economy:0},valuesBy:null,
   champ:null,stable:[],lessons:[],book:[],lineage:[],history:[],stats:{prop:0,acc:0,rej:0},sinceRecord:0,lins:1,plateau:false,pending:null,pendingKey:null,room:null};
 const sc=e=>SIM.score(e,A.values);
@@ -139,10 +139,11 @@ function offlineComm(res,best,accepted){const top=res[0],flops=res.filter(r=>r.e
 
 /* ---------- coaches ---------- */
 const post=(u,b)=>fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.message||r.status),{code:j.error||'http'});return j});
-function alts(){return A.stable.filter(s=>s.genome!==A.champ.genome).slice(0,2)}
-async function proposeModel(plateau){const j=await post('/api/coaches',{champion:{genome:A.champ.genome,e:A.champ.e,score:sc(A.champ.e),gait:SIM.gait(A.champ.e),lin:A.champ.lin},alts:alts().map(a=>({genome:a.genome,e:a.e,score:sc(a.e),gait:SIM.gait(a.e),lin:a.lin})),event:A.event,lessons:A.lessons,plateau,values:A.values});
-  A.model=j.model||A.model;setMode('model');const al=alts();return (j.proposals||[]).filter(o=>o&&o.genome&&typeof o.hypothesis==='string').slice(0,6).map((o,i)=>({coach:String(o.coach||COACHES[i%6]).slice(0,24),hyp:String(o.hypothesis).slice(0,100),genome:SIM.sanitize(o.genome),src:'model',lin:(i>=4&&al.length)?al[0].lin:A.champ.lin}))}
-function proposeRules(n,plateau){const out=[];for(let i=0;i<n;i++){const c=COACHES[(A.gen*6+i)%6];const al=alts();const par=(i>=4&&al.length)?al[Math.floor(Math.random()*al.length)]:{genome:A.champ.genome,lin:A.champ.lin};let m=(c==='Ren'&&al.length)?SIM.crossover(A.champ.genome,al[0].genome):SIM.mutate(par.genome);if(plateau)m=SIM.mutate(SIM.mutate(m.genome).genome);out.push({coach:c,hyp:m.why,genome:m.genome,src:'rule',lin:par.lin})}return out}
+function alts(){const CH=A.nextChamp||A.champ;return A.stable.filter(s=>s.genome!==CH.genome&&s.genome!==A.champ.genome).slice(0,2)}
+function structural(g){const b=SIM.sanitize(g);for(let k=0;k<40;k++){const m=SIM.mutate(g);const a=m.genome;if(a.legs.length!==b.legs.length||JSON.stringify(a.torso)!==JSON.stringify(b.torso)||a.legs.some((l,i)=>!b.legs[i]||l.x!==b.legs[i].x||l.z!==b.legs[i].z||l.up!==b.legs[i].up||l.lo!==b.legs[i].lo))return m}return SIM.mutate(SIM.mutate(g).genome)}
+async function proposeModel(plateau){const CH=A.nextChamp||A.champ;const j=await post('/api/coaches',{champion:{genome:CH.genome,e:CH.e,score:sc(CH.e),gait:SIM.gait(CH.e),lin:CH.lin},kept:A.lineage.slice(-8).map(l=>l.hyp),alts:alts().map(a=>({genome:a.genome,e:a.e,score:sc(a.e),gait:SIM.gait(a.e),lin:a.lin})),event:A.event,lessons:A.lessons,plateau,values:A.values});
+  A.model=j.model||A.model;setMode('model');const al=alts();return (j.proposals||[]).filter(o=>o&&o.genome&&typeof o.hypothesis==='string').slice(0,6).map((o,i)=>({coach:String(o.coach||COACHES[i%6]).slice(0,24),hyp:String(o.hypothesis).slice(0,100),genome:SIM.sanitize(o.genome),src:'model',lin:(i>=4&&al.length)?al[0].lin:CH.lin}))}
+function proposeRules(n,plateau){const CH=A.nextChamp||A.champ;const out=[];for(let i=0;i<n;i++){const c=COACHES[(A.gen*6+i)%6];const al=alts();const par=(i>=4&&al.length)?al[Math.floor(Math.random()*al.length)]:{genome:CH.genome,lin:CH.lin};let m=(c==='Ren'&&al.length)?SIM.crossover(CH.genome,al[0].genome):SIM.mutate(par.genome);if(plateau)m=SIM.mutate(SIM.mutate(m.genome).genome);out.push({coach:c,hyp:m.why,genome:m.genome,src:'rule',lin:par.lin})}return out}
 async function propose(plateau){if(A.coachMode==='blind')return proposeRules(6,plateau);
   try{const p=await proposeModel(plateau);if(p.length<6)p.push(...proposeRules(6-p.length,plateau));return p}
   catch(e){setStatus('coaches unavailable ('+(e.code||'error')+') · rules stood in');if(e.code==='no_provider')setMode('offline');return proposeRules(6,plateau)}}
@@ -162,11 +163,11 @@ function setMode(m){A.mode=m;const c=$('modeSt');c.className='st '+(m==='model'?
 function setStatus(t){$('status').innerHTML=t}
 function warmup(){play([{genome:A.champ.genome,coach:A.names[A.champ.lin],hyp:A.champ.hyp,gait:SIM.gait(A.champ.e)}],{loop:true,secs:6});setStatus('warm-up lap · <b>'+A.names[A.champ.lin]+'</b>')}
 function card(k,b,d,cls,ms){$('cardK').textContent=k;$('cardK').className='k '+cls;$('cardB').textContent=b;$('cardD').textContent=d;const c=$('card');c.classList.add('in');return new Promise(r=>setTimeout(()=>{c.classList.remove('in');setTimeout(r,200)},ms||1800))}
-function pushStable(entry){const key=JSON.stringify(entry.genome);if(A.stable.some(s=>JSON.stringify(s.genome)===key))return;A.stable.push(entry);A.stable.sort((a,b)=>sc(b.e)-sc(a.e));A.stable.length=Math.min(A.stable.length,6)}
+function pushStable(entry){const key=JSON.stringify(entry.genome);if(A.stable.some(s=>JSON.stringify(s.genome)===key))return;A.stable.push(entry);A.stable.sort((a,b)=>sc(b.e)-sc(a.e));while(A.stable.length>6){let i=A.stable.length-1;while(i>0&&A.stable[i].pin>A.gen)i--;A.stable.splice(i,1)}}
 function rescore(){A.stable.sort((a,b)=>sc(b.e)-sc(a.e));const best=A.stable[0];if(best&&sc(best.e)>sc(A.champ.e)+1e-9){A.champ={genome:best.genome,e:best.e,coach:best.coach,hyp:best.hyp,lin:best.lin}}}
 function setValues(v,by){A.values={speed:+v.speed,posture:+v.posture,economy:+v.economy};$('vS').value=A.values.speed;$('vP').value=A.values.posture;$('vE').value=A.values.economy;const before=sc(A.champ.e);rescore();A.lessons.push(`VALUES CHANGED by ${by}: speed ${A.values.speed}, posture ${A.values.posture}, economy ${A.values.economy}; the record is now ${sc(A.champ.e)}`);note(by,`values · speed ${A.values.speed} · posture ${A.values.posture} · economy ${A.values.economy}`,{d:sc(A.champ.e)-before});A.sinceRecord=0;renderPanel();if(!A.busy)warmup()}
 function setEvent(ev,by){if(ev===A.event)return;A.event=ev;document.querySelectorAll('[data-ev]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.ev===ev)));$('evLbl').textContent=ev;setTerrain(ev);
-  const before=sc(A.champ.e);for(const s of A.stable)s.e=SIM.evaluate(s.genome,ev);A.champ.e=SIM.evaluate(A.champ.genome,ev);A.stable.sort((a,b)=>sc(b.e)-sc(a.e));A.sinceRecord=0;A.pending=null;
+  const before=sc(A.champ.e);for(const s of A.stable)s.e=SIM.evaluate(s.genome,ev);A.champ.e=SIM.evaluate(A.champ.genome,ev);A.stable.sort((a,b)=>sc(b.e)-sc(a.e));A.sinceRecord=0;A.pending=null;A.nextChamp=null;A.challenger=null;
   A.lessons.push(`EVENT CHANGED to ${ev} by ${by}: the champion now scores ${sc(A.champ.e)} here (was ${before})`);note(by,`changed the course to ${ev} · champion re-scored ${sc(A.champ.e).toFixed(2)}`,{d:sc(A.champ.e)-before});renderPanel();card('the crowd',`the course is now ${ev}`,`champion re-scored ${sc(A.champ.e).toFixed(2)}`,'crowd',1600);if(!A.busy)warmup()}
 
 /* ---------- the loop ---------- */
@@ -177,9 +178,11 @@ async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=sc
   setStatus('physics is judging six hypotheses…');await new Promise(r=>setTimeout(r,30));
   const res=props.map(p=>({...p,e:SIM.evaluate(p.genome,A.event)})).map(r=>({...r,score:sc(r.e)})).sort((a,b)=>b.score-a.score);
   const best=res[0];const accepted=best.score>A.prevRecord;A.lastHeat=res.slice(0,3);
+  const willPlateau=!accepted&&A.sinceRecord+1>=4;A.nextChamp=accepted?{genome:best.genome,e:best.e,coach:best.coach,hyp:best.hyp,lin:best.lin}:A.champ;
+  if(willPlateau){const L=LET[A.lins++]||'Z';A.names[L]=A.names[L]||SIM.latinName(A.lins);const m=structural(A.champ.genome);const e=SIM.evaluate(m.genome,A.event);A.challenger={L,why:m.why};pushStable({genome:m.genome,e,lin:L,coach:'the head coach',hyp:m.why,pin:A.gen+6})}
   setStatus('heat '+A.gen);const heat=play(res.slice(0,3).map((r,i)=>({genome:r.genome,coach:r.coach,hyp:r.hyp,gait:SIM.gait(r.e),color:LANE_COLORS[i]})),{secs:SIM.SECS});
   const overtook=accepted&&best.lin!==A.champ.lin;const commP=commentary(res,best,accepted,plateau,overtook);
-  if(!plateau&&A.running)startPending(false);
+  if(A.running)startPending(willPlateau);
   await heat;
   for(const r of res){A.stats.prop++;const kept=accepted&&r===best;if(kept)A.stats.acc++;else A.stats.rej++;const d=r.score-A.prevRecord;
     A.lessons.push(`${kept?'KEPT':'rejected'}: "${r.hyp}" (${r.coach}, lineage ${r.lin}) -> ${r.score} (${d>=0?'+':''}${d.toFixed(2)} vs record), gait ${SIM.gait(r.e)}${r.e.flipped?', flipped':''}${r.e.fell?', fell':''}`);
@@ -188,8 +191,9 @@ async function generation(){if(A.busy)return;A.busy=true;A.gen++;A.prevRecord=sc
   else A.sinceRecord++;
   A.history.push(sc(A.champ.e));renderPanel();pushRoom();
   await card(accepted?'kept · new record':'rejected · 6 of 6',best.hyp,accepted?`${best.coach} · ${best.score.toFixed(2)} (+${(best.score-A.prevRecord).toFixed(2)}) · ${SIM.gait(best.e)}`:`best of the heat ${best.score.toFixed(2)} · record stays ${sc(A.champ.e).toFixed(2)}`,accepted?'acc':'rej');
-  if(!accepted&&A.sinceRecord>=4){A.plateau=true;A.pending=null;const L=LET[A.lins++]||'Z';A.names[L]=A.names[L]||SIM.latinName(A.lins);let g=SIM.SEED;for(let k=0;k<3;k++)g=SIM.mutate(g).genome;const e=SIM.evaluate(g,A.event);pushStable({genome:g,e,lin:L,coach:'the seed',hyp:'a fresh body enters'});
-    A.lessons.push(`PLATEAU after ${A.sinceRecord} dry generations: lineage ${L} (${A.names[L]}) enters from the seed; structural changes only next round`);note('the stadium',`plateau · ${A.names[L]} enters`);A.sinceRecord=0;renderPanel();if(A.running)startPending(true);await card('plateau',`${A.names[L]} enters the stadium`,'structural changes only next round','rej',1800)}
+  if(!accepted&&A.sinceRecord>=4&&A.challenger){A.plateau=true;const {L,why}=A.challenger;A.challenger=null;
+    A.lessons.push(`PLATEAU after ${A.sinceRecord} dry generations: lineage ${L} (${A.names[L]}) branches from the champion (${why}); structural changes only next round`);note('the stadium',`plateau · ${A.names[L]} branches from the champion`);A.sinceRecord=0;renderPanel();await card('plateau',`${A.names[L]} challenges the champion`,`${why} · structural changes only next round`,'rej',1400)}
+  else A.challenger=null;
   const lines=await commP;showComm(lines);
   A.busy=false;if(A.running){warmup();setTimeout(()=>{if(A.running)generation()},250)}else warmup()}
 
