@@ -40,13 +40,25 @@ The loop is honest end to end: nothing is scripted, the model's hypotheses are i
 Swap the judge and keep the stadium. A chip (synthesis, formal checks and a timing run, which already exist in auto-arch), an antibody (a binding-energy model), a bridge (a load test). A public benchmark for how well a model proposes under a verifier, which is the skill that matters now.
 
 ## Built with
-three.js, cannon.js, node, express, openai, fly.io, web speech api
+three.js, cannon.js, node, express, anthropic (claude-haiku-5-5), cartesia (sonic-3.6), spacetimedb, fly.io
 
 ## Links
 Live: https://evolution-stadium.fly.dev · Crowd: /vote · Bench: /bench · About: /about · Repo: https://github.com/ojpbarbosa/evolution-stadium · Video: [youtube]
 
 ## Prize opt-ins
-Cal Hacks Most Creative Hack · Most Technically Complex Hack · Hacker's Choice · [MLH] Best Use of Gen AI. (Cartesia only if a key lands before 08:00; not Convex, not Spacetime.)
+Cal Hacks Most Creative Hack · Most Technically Complex Hack · Hacker's Choice · [MLH] Best Use of Gen AI · Anthropic · Best Use of Cartesia · Spacetime. (Not Convex.)
+
+### For the Anthropic judges
+1. The community: people who run verifier-gated design loops for a living, chip and antibody teams, and the students about to join them, who have never watched the method work.
+2. The problem: the method is invisible. A coworker runs CPU/TPU evolution loops where an incorruptible verifier rejects most proposals; nobody outside the team can see why rejection is the point. We built the method as a sport so it can be watched.
+3. It works: one loop done well. Open the page, press play, and the record moves within a minute. Ran unattended for hundreds of generations; the bench shows coaches with hypotheses at 2.26 m against blind mutation at 0.80 m under the same budget.
+4. Claude: six coach personas and the head-coach role on claude-haiku-5-5 propose full genomes and twelve-word causal claims; the commentators are the same model reading real results. Where it goes wrong: it never sees the simulator, so it proposes bodies that flip and numbers out of range; sanitize clamps, physics rejects, the notebook keeps the rejected claim with its delta so the next generation reads it. If the model is down, rule-based mutations stand in and are labelled.
+
+### For the Cartesia judges
+Voice is the broadcast. Vic and Lou are Cartesia Sonic voices (sonic-3.6) calling every heat from the actual results: the record, who flipped, which lineage overtook. Lines are synthesised during the replay through a server-side proxy (key never in the browser), cached per line, and played in order as the result card lands; speed and emotion are set per commentator. Accessibility and responsibility: every line is also on screen as text, voice has an on/off control, no microphone, no listener data. Known limits: about a second to first audio on a new line, English only, browser speech fallback.
+
+### For the Spacetime judges
+The room is the shared state between the stadium screen and every phone in the crowd. A TypeScript SpacetimeDB module holds the scoreboard, votes, lineage names and the judge's values; phones and the stadium write through reducers (vote, rename, judge, host) and the web node is stateless, reading public tables over SQL. Votes are transactional and agree across web nodes, which the in-memory room could not do on two Fly machines. Known limit: clients still poll the web node every two seconds instead of subscribing over WebSocket.
 
 ## The thirty seconds
 "This is how chips and antibodies are starting to be designed: an AI proposes, a brutal verifier rejects most of it, and the survivors compound. We made it a sport. Six AI coaches breed a creature, physics is the only judge, the crowd sets the course from their phones, and the notebook shows every hypothesis that died. [Point at the counter.] Seventy hypotheses, fifty-eight rejected. That is the point."
